@@ -1,0 +1,38 @@
+# Build artifacts
+build/
+cmake-build-*/
+*.o
+*.a
+*.so
+*.dylib
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+.pytest_cache/
+.venv/
+venv/
+*.egg
+
+# Generated figures
+paper/figures/*.pdf
+paper/figures/*.png
+paper/figures/*.svg
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Benchmark outputs
+benchmarks/*.csv
+benchmarks/*.json
+analysis/data/

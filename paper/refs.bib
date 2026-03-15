@@ -1,0 +1,160 @@
+% References for "Cache Hierarchy and Vectorization Analysis of Lindblad Master
+% Equation Simulation for Near-Term Quantum Control"
+
+% --- Core physics ---
+
+@article{Lindblad1976,
+  author  = {Lindblad, G.},
+  title   = {On the generators of quantum dynamical semigroups},
+  journal = {Communications in Mathematical Physics},
+  volume  = {48},
+  number  = {2},
+  pages   = {119--130},
+  year    = {1976},
+  doi     = {10.1007/BF01608499}
+}
+
+@article{Gorini1976,
+  author  = {Gorini, Vittorio and Kossakowski, Andrzej and Sudarshan, E. C. G.},
+  title   = {Completely positive dynamical semigroups of $N$-level systems},
+  journal = {Journal of Mathematical Physics},
+  volume  = {17},
+  number  = {5},
+  pages   = {821--825},
+  year    = {1976},
+  doi     = {10.1063/1.522979}
+}
+
+% --- Matrix exponential ---
+
+@article{Higham2005,
+  author  = {Higham, Nicholas J.},
+  title   = {The Scaling and Squaring Method for the Matrix Exponential Revisited},
+  journal = {SIAM Journal on Matrix Analysis and Applications},
+  volume  = {26},
+  number  = {4},
+  pages   = {1179--1193},
+  year    = {2005},
+  doi     = {10.1137/04061101X}
+}
+
+@article{Moler2003,
+  author  = {Moler, Cleve and Van Loan, Charles},
+  title   = {Nineteen Dubious Ways to Compute the Exponential of a Matrix, Twenty-Five Years Later},
+  journal = {SIAM Review},
+  volume  = {45},
+  number  = {1},
+  pages   = {3--49},
+  year    = {2003},
+  doi     = {10.1137/S00361445024180}
+}
+
+% --- Roofline model ---
+
+@article{Williams2009,
+  author  = {Williams, Samuel and Waterman, Andrew and Patterson, David},
+  title   = {Roofline: An Insightful Visual Performance Model for Multicore
+             Architectures},
+  journal = {Communications of the ACM},
+  volume  = {52},
+  number  = {4},
+  pages   = {65--76},
+  year    = {2009},
+  doi     = {10.1145/1498765.1498785}
+}
+
+% --- Quantum simulation software ---
+
+@article{Johansson2012,
+  author  = {Johansson, J. R. and Nation, P. D. and Nori, Franco},
+  title   = {{QuTiP}: An open-source {Python} framework for the dynamics of
+             open quantum systems},
+  journal = {Computer Physics Communications},
+  volume  = {183},
+  number  = {8},
+  pages   = {1760--1772},
+  year    = {2012},
+  doi     = {10.1016/j.cpc.2012.02.021}
+}
+
+@article{Johansson2013,
+  author  = {Johansson, J. R. and Nation, P. D. and Nori, Franco},
+  title   = {{QuTiP} 2: A {Python} framework for the dynamics of open quantum systems},
+  journal = {Computer Physics Communications},
+  volume  = {184},
+  number  = {4},
+  pages   = {1234--1240},
+  year    = {2013},
+  doi     = {10.1016/j.cpc.2012.11.019}
+}
+
+% --- Quantum optimal control ---
+
+@article{Khaneja2005,
+  author  = {Khaneja, Navin and Reiss, Timo and Kehlet, Cindie and
+             Schulte-Herbr{\"u}ggen, Thomas and Glaser, Steffen J.},
+  title   = {Optimal control of coupled spin dynamics: design of {NMR} pulse
+             sequences by gradient ascent algorithms},
+  journal = {Journal of Magnetic Resonance},
+  volume  = {172},
+  number  = {2},
+  pages   = {296--305},
+  year    = {2005},
+  doi     = {10.1016/j.jmr.2004.11.004}
+}
+
+@article{Motzoi2009,
+  author  = {Motzoi, F. and Gambetta, J. M. and Rebentrost, P. and Wilhelm, F. K.},
+  title   = {Simple Pulses for Elimination of Leakage in Weakly Nonlinear Qubits},
+  journal = {Physical Review Letters},
+  volume  = {103},
+  number  = {11},
+  pages   = {110501},
+  year    = {2009},
+  doi     = {10.1103/PhysRevLett.103.110501}
+}
+
+% --- Transmon hardware ---
+
+@article{Koch2007,
+  author  = {Koch, Jens and Yu, Terri M. and Gambetta, Jay and Houck, A. A. and
+             Schuster, D. I. and Majer, J. and Blais, Alexandre and
+             Devoret, M. H. and Girvin, S. M. and Schoelkopf, R. J.},
+  title   = {Charge-insensitive qubit design derived from the {Cooper} pair box},
+  journal = {Physical Review A},
+  volume  = {76},
+  number  = {4},
+  pages   = {042319},
+  year    = {2007},
+  doi     = {10.1103/PhysRevA.76.042319}
+}
+
+% --- Compiler / SIMD references ---
+
+@book{AgnerFog,
+  author    = {Fog, Agner},
+  title     = {Optimizing Software in {C++}: An Optimization Guide for
+               Windows, {Linux}, and {Mac} Platforms},
+  year      = {2024},
+  note      = {Available at \url{https://www.agner.org/optimize/}}
+}
+
+@misc{IntelIntrinsics,
+  author = {{Intel Corporation}},
+  title  = {Intel Intrinsics Guide},
+  year   = {2024},
+  note   = {\url{https://www.intel.com/content/www/us/en/docs/intrinsics-guide/}}
+}
+
+% --- Related work: QubitPulseOpt ---
+
+@misc{Malarchick2025QPO,
+  author = {Malarchick, Rylan},
+  title  = {When Does Numerical Pulse Optimization Actually Help? {Error} Budgets,
+            Robustness Tradeoffs, and Calibration Guidance for Transmon Single-Qubit Gates},
+  year   = {2025},
+  eprint = {2511.12799},
+  archivePrefix = {arXiv},
+  primaryClass  = {quant-ph},
+  doi    = {10.48550/arXiv.2511.12799}
+}
