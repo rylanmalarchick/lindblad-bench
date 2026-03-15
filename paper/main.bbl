@@ -1,0 +1,137 @@
+%apsrev4-2.bst 2019-01-14 (MD) hand-edited version of apsrev4-1.bst
+%Control: key (0)
+%Control: author (8) initials jnrlst
+%Control: editor formatted (1) identically to author
+%Control: production of article title (0) allowed
+%Control: page (0) single
+%Control: year (1) truncated
+%Control: production of eprint (0) enabled
+\begin{thebibliography}{7}%
+\makeatletter
+\providecommand \@ifxundefined [1]{%
+ \@ifx{#1\undefined}
+}%
+\providecommand \@ifnum [1]{%
+ \ifnum #1\expandafter \@firstoftwo
+ \else \expandafter \@secondoftwo
+ \fi
+}%
+\providecommand \@ifx [1]{%
+ \ifx #1\expandafter \@firstoftwo
+ \else \expandafter \@secondoftwo
+ \fi
+}%
+\providecommand \natexlab [1]{#1}%
+\providecommand \enquote  [1]{``#1''}%
+\providecommand \bibnamefont  [1]{#1}%
+\providecommand \bibfnamefont [1]{#1}%
+\providecommand \citenamefont [1]{#1}%
+\providecommand \href@noop [0]{\@secondoftwo}%
+\providecommand \href [0]{\begingroup \@sanitize@url \@href}%
+\providecommand \@href[1]{\@@startlink{#1}\@@href}%
+\providecommand \@@href[1]{\endgroup#1\@@endlink}%
+\providecommand \@sanitize@url [0]{\catcode `\\12\catcode `\$12\catcode
+  `\&12\catcode `\#12\catcode `\^12\catcode `\_12\catcode `\%12\relax}%
+\providecommand \@@startlink[1]{}%
+\providecommand \@@endlink[0]{}%
+\providecommand \url  [0]{\begingroup\@sanitize@url \@url }%
+\providecommand \@url [1]{\endgroup\@href {#1}{\urlprefix }}%
+\providecommand \urlprefix  [0]{URL }%
+\providecommand \Eprint [0]{\href }%
+\providecommand \doibase [0]{https://doi.org/}%
+\providecommand \selectlanguage [0]{\@gobble}%
+\providecommand \bibinfo  [0]{\@secondoftwo}%
+\providecommand \bibfield  [0]{\@secondoftwo}%
+\providecommand \translation [1]{[#1]}%
+\providecommand \BibitemOpen [0]{}%
+\providecommand \bibitemStop [0]{}%
+\providecommand \bibitemNoStop [0]{.\EOS\space}%
+\providecommand \EOS [0]{\spacefactor3000\relax}%
+\providecommand \BibitemShut  [1]{\csname bibitem#1\endcsname}%
+\let\auto@bib@innerbib\@empty
+%</preamble>
+\bibitem [{\citenamefont {Lindblad}(1976)}]{Lindblad1976}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {G.}~\bibnamefont
+  {Lindblad}},\ }\bibfield  {title} {\bibinfo {title} {On the generators of
+  quantum dynamical semigroups},\ }\href {https://doi.org/10.1007/BF01608499}
+  {\bibfield  {journal} {\bibinfo  {journal} {Communications in Mathematical
+  Physics}\ }\textbf {\bibinfo {volume} {48}},\ \bibinfo {pages} {119}
+  (\bibinfo {year} {1976})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Gorini}\ \emph {et~al.}(1976)\citenamefont {Gorini},
+  \citenamefont {Kossakowski},\ and\ \citenamefont {Sudarshan}}]{Gorini1976}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {V.}~\bibnamefont
+  {Gorini}}, \bibinfo {author} {\bibfnamefont {A.}~\bibnamefont
+  {Kossakowski}},\ and\ \bibinfo {author} {\bibfnamefont {E.~C.~G.}\
+  \bibnamefont {Sudarshan}},\ }\bibfield  {title} {\bibinfo {title} {Completely
+  positive dynamical semigroups of $n$-level systems},\ }\href
+  {https://doi.org/10.1063/1.522979} {\bibfield  {journal} {\bibinfo  {journal}
+  {Journal of Mathematical Physics}\ }\textbf {\bibinfo {volume} {17}},\
+  \bibinfo {pages} {821} (\bibinfo {year} {1976})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Koch}\ \emph {et~al.}(2007)\citenamefont {Koch},
+  \citenamefont {Yu}, \citenamefont {Gambetta}, \citenamefont {Houck},
+  \citenamefont {Schuster}, \citenamefont {Majer}, \citenamefont {Blais},
+  \citenamefont {Devoret}, \citenamefont {Girvin},\ and\ \citenamefont
+  {Schoelkopf}}]{Koch2007}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {J.}~\bibnamefont
+  {Koch}}, \bibinfo {author} {\bibfnamefont {T.~M.}\ \bibnamefont {Yu}},
+  \bibinfo {author} {\bibfnamefont {J.}~\bibnamefont {Gambetta}}, \bibinfo
+  {author} {\bibfnamefont {A.~A.}\ \bibnamefont {Houck}}, \bibinfo {author}
+  {\bibfnamefont {D.~I.}\ \bibnamefont {Schuster}}, \bibinfo {author}
+  {\bibfnamefont {J.}~\bibnamefont {Majer}}, \bibinfo {author} {\bibfnamefont
+  {A.}~\bibnamefont {Blais}}, \bibinfo {author} {\bibfnamefont {M.~H.}\
+  \bibnamefont {Devoret}}, \bibinfo {author} {\bibfnamefont {S.~M.}\
+  \bibnamefont {Girvin}},\ and\ \bibinfo {author} {\bibfnamefont {R.~J.}\
+  \bibnamefont {Schoelkopf}},\ }\bibfield  {title} {\bibinfo {title}
+  {Charge-insensitive qubit design derived from the {Cooper} pair box},\ }\href
+  {https://doi.org/10.1103/PhysRevA.76.042319} {\bibfield  {journal} {\bibinfo
+  {journal} {Physical Review A}\ }\textbf {\bibinfo {volume} {76}},\ \bibinfo
+  {pages} {042319} (\bibinfo {year} {2007})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Khaneja}\ \emph {et~al.}(2005)\citenamefont
+  {Khaneja}, \citenamefont {Reiss}, \citenamefont {Kehlet}, \citenamefont
+  {Schulte-Herbr{\"u}ggen},\ and\ \citenamefont {Glaser}}]{Khaneja2005}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {N.}~\bibnamefont
+  {Khaneja}}, \bibinfo {author} {\bibfnamefont {T.}~\bibnamefont {Reiss}},
+  \bibinfo {author} {\bibfnamefont {C.}~\bibnamefont {Kehlet}}, \bibinfo
+  {author} {\bibfnamefont {T.}~\bibnamefont {Schulte-Herbr{\"u}ggen}},\ and\
+  \bibinfo {author} {\bibfnamefont {S.~J.}\ \bibnamefont {Glaser}},\ }\bibfield
+   {title} {\bibinfo {title} {Optimal control of coupled spin dynamics: design
+  of {NMR} pulse sequences by gradient ascent algorithms},\ }\href
+  {https://doi.org/10.1016/j.jmr.2004.11.004} {\bibfield  {journal} {\bibinfo
+  {journal} {Journal of Magnetic Resonance}\ }\textbf {\bibinfo {volume}
+  {172}},\ \bibinfo {pages} {296} (\bibinfo {year} {2005})}\BibitemShut
+  {NoStop}%
+\bibitem [{\citenamefont {Malarchick}(2025)}]{Malarchick2025QPO}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {R.}~\bibnamefont
+  {Malarchick}},\ }\href {https://doi.org/10.48550/arXiv.2511.12799} {\bibinfo
+  {title} {When does numerical pulse optimization actually help? {Error}
+  budgets, robustness tradeoffs, and calibration guidance for transmon
+  single-qubit gates}} (\bibinfo {year} {2025}),\ \Eprint
+  {https://arxiv.org/abs/2511.12799} {arXiv:2511.12799 [quant-ph]} \BibitemShut
+  {NoStop}%
+\bibitem [{\citenamefont {Williams}\ \emph {et~al.}(2009)\citenamefont
+  {Williams}, \citenamefont {Waterman},\ and\ \citenamefont
+  {Patterson}}]{Williams2009}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {S.}~\bibnamefont
+  {Williams}}, \bibinfo {author} {\bibfnamefont {A.}~\bibnamefont {Waterman}},\
+  and\ \bibinfo {author} {\bibfnamefont {D.}~\bibnamefont {Patterson}},\
+  }\bibfield  {title} {\bibinfo {title} {Roofline: An insightful visual
+  performance model for multicore architectures},\ }\href
+  {https://doi.org/10.1145/1498765.1498785} {\bibfield  {journal} {\bibinfo
+  {journal} {Communications of the ACM}\ }\textbf {\bibinfo {volume} {52}},\
+  \bibinfo {pages} {65} (\bibinfo {year} {2009})}\BibitemShut {NoStop}%
+\bibitem [{\citenamefont {Higham}(2005)}]{Higham2005}%
+  \BibitemOpen
+  \bibfield  {author} {\bibinfo {author} {\bibfnamefont {N.~J.}\ \bibnamefont
+  {Higham}},\ }\bibfield  {title} {\bibinfo {title} {The scaling and squaring
+  method for the matrix exponential revisited},\ }\href
+  {https://doi.org/10.1137/04061101X} {\bibfield  {journal} {\bibinfo
+  {journal} {SIAM Journal on Matrix Analysis and Applications}\ }\textbf
+  {\bibinfo {volume} {26}},\ \bibinfo {pages} {1179} (\bibinfo {year}
+  {2005})}\BibitemShut {NoStop}%
+\end{thebibliography}%
