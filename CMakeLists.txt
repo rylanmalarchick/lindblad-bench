@@ -10,17 +10,24 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 # Base flags: all warnings, treat as errors, fast math
 set(BASE_FLAGS "-Wall -Wextra -Werror -ffast-math")
 
-# Two build targets: scalar-only (for assembly comparison) and auto-vectorized
-# Use: cmake -DVECTORIZE=OFF .. to disable auto-vectorization
-option(VECTORIZE "Enable compiler auto-vectorization (-O3 -march=native)" ON)
+# CUSTOM_C_FLAGS: when set, overrides ALL flag logic (used by compiler_flags.sh)
+set(CUSTOM_C_FLAGS "" CACHE STRING "Override all compiler flags (for benchmarking)")
 
-if(VECTORIZE)
-    set(OPT_FLAGS "-O3 -march=native")
+if(CUSTOM_C_FLAGS)
+    set(CMAKE_C_FLAGS "${CUSTOM_C_FLAGS}")
 else()
-    set(OPT_FLAGS "-O2 -fno-tree-vectorize")
-endif()
+    # Two build targets: scalar-only (for assembly comparison) and auto-vectorized
+    # Use: cmake -DVECTORIZE=OFF .. to disable auto-vectorization
+    option(VECTORIZE "Enable compiler auto-vectorization (-O3 -march=native)" ON)
 
-set(CMAKE_C_FLAGS "${BASE_FLAGS} ${OPT_FLAGS}")
+    if(VECTORIZE)
+        set(OPT_FLAGS "-O3 -march=native")
+    else()
+        set(OPT_FLAGS "-O2 -fno-tree-vectorize")
+    endif()
+
+    set(CMAKE_C_FLAGS "${BASE_FLAGS} ${OPT_FLAGS}")
+endif()
 
 # ---------------------------------------------------------------------------
 # Library: lindblad_bench (static)
@@ -40,7 +47,7 @@ target_include_directories(lindblad_bench PUBLIC
 # ---------------------------------------------------------------------------
 # Benchmarks
 # ---------------------------------------------------------------------------
-foreach(bench propagate evolve expm)
+foreach(bench propagate evolve expm grape)
     add_executable(bench_${bench} benchmarks/bench_${bench}.c)
     target_link_libraries(bench_${bench} lindblad_bench m)
     target_include_directories(bench_${bench} PRIVATE
@@ -53,7 +60,7 @@ endforeach()
 # ---------------------------------------------------------------------------
 enable_testing()
 
-foreach(test expm propagate)
+foreach(test expm propagate evolve)
     add_executable(test_${test} tests/test_${test}.c)
     target_link_libraries(test_${test} lindblad_bench m)
     target_include_directories(test_${test} PRIVATE

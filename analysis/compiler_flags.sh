@@ -19,7 +19,7 @@ ASM_DIR="$ROOT/analysis/asm"
 mkdir -p "$ASM_DIR"
 
 CSV="$ROOT/benchmarks/compiler_results.csv"
-echo "flags,d,ns_per_step,gflops,gbytes_s" > "$CSV"
+echo "flags,variant,d,ns_per_step,gflops,gbytes_s" > "$CSV"
 
 declare -A FLAG_SETS
 FLAG_SETS[scalar]="-O2 -fno-tree-vectorize -fno-unroll-loops"
@@ -34,8 +34,7 @@ for label in scalar O3 O3_native O3_native_fast; do
     echo "=== $label: $flags ==="
 
     cmake -B "$build_dir" -S "$ROOT" \
-        -DCMAKE_C_FLAGS="$flags -DNDEBUG" \
-        -DVECTORIZE=OFF \
+        -DCUSTOM_C_FLAGS="$flags -DNDEBUG" \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_C_COMPILER=gcc \
         -Wno-dev -DCMAKE_VERBOSE_MAKEFILE=OFF \
@@ -51,17 +50,43 @@ for label in scalar O3 O3_native O3_native_fast; do
     output=$("$build_dir/bench_propagate" "$N_REPS" 2>/dev/null)
     echo "$output"
 
-    # Extract per-d results and append to CSV
+    # Extract per-d results for each variant (AoS, SoA, AVX2)
+    current_d=""
+    aos_ns="" aos_gf="" aos_gb=""
+    soa_ns="" soa_gf="" soa_gb=""
+    avx_ns="" avx_gf="" avx_gb=""
+
     while IFS= read -r line; do
-        d_match=$(echo "$line" | grep -oP '(?<=d = )\d+' || true)
-        if [[ -n "$d_match" ]]; then
-            current_d="$d_match"
+        # Match "d = X"
+        if [[ "$line" =~ d\ =\ ([0-9]+) ]]; then
+            current_d="${BASH_REMATCH[1]}"
+            aos_ns="" aos_gf="" aos_gb=""
+            soa_ns="" soa_gf="" soa_gb=""
+            avx_ns="" avx_gf="" avx_gb=""
         fi
-        ns_match=$(echo "$line" | grep -oP '[\d.]+ (?=ns)' | head -1 || true)
-        gf_match=$(echo "$line" | grep -oP '[\d.]+ (?=GFLOP)' | head -1 || true)
-        gb_match=$(echo "$line" | grep -oP '[\d.]+ (?=GB/s)' | head -1 || true)
-        if [[ -n "$gb_match" && -n "$current_d" ]]; then
-            echo "$label,$current_d,$ns_match,$gf_match,$gb_match" >> "$CSV"
+
+        # AoS metrics
+        if [[ "$line" =~ \[AoS\]\ ns/step:\ *([0-9.]+) ]]; then aos_ns="${BASH_REMATCH[1]}"; fi
+        if [[ "$line" =~ \[AoS\]\ GFLOP/s:\ *([0-9.]+) ]]; then aos_gf="${BASH_REMATCH[1]}"; fi
+        if [[ "$line" =~ \[AoS\]\ GB/s\ *:\ *([0-9.]+) ]]; then
+            aos_gb="${BASH_REMATCH[1]}"
+            echo "$label,AoS,$current_d,$aos_ns,$aos_gf,$aos_gb" >> "$CSV"
+        fi
+
+        # SoA metrics
+        if [[ "$line" =~ \[SoA\]\ ns/step:\ *([0-9.]+) ]]; then soa_ns="${BASH_REMATCH[1]}"; fi
+        if [[ "$line" =~ \[SoA\]\ GFLOP/s:\ *([0-9.]+) ]]; then soa_gf="${BASH_REMATCH[1]}"; fi
+        if [[ "$line" =~ \[SoA\]\ GB/s\ *:\ *([0-9.]+) ]]; then
+            soa_gb="${BASH_REMATCH[1]}"
+            echo "$label,SoA,$current_d,$soa_ns,$soa_gf,$soa_gb" >> "$CSV"
+        fi
+
+        # AVX2 metrics
+        if [[ "$line" =~ \[AVX\]\ ns/step:\ *([0-9.]+) ]]; then avx_ns="${BASH_REMATCH[1]}"; fi
+        if [[ "$line" =~ \[AVX\]\ GFLOP/s:\ *([0-9.]+) ]]; then avx_gf="${BASH_REMATCH[1]}"; fi
+        if [[ "$line" =~ \[AVX\]\ GB/s\ *:\ *([0-9.]+) ]]; then
+            avx_gb="${BASH_REMATCH[1]}"
+            echo "$label,AVX2,$current_d,$avx_ns,$avx_gf,$avx_gb" >> "$CSV"
         fi
     done <<< "$output"
 done

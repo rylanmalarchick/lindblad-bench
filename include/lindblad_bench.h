@@ -44,6 +44,17 @@ typedef struct {
 } lb_matrix_t;
 
 /**
+ * Real/Imaginary separated matrix (Structure of Arrays).
+ * real[i*cols + j] = Re(M_{i,j})
+ * imag[i*cols + j] = Im(M_{i,j})
+ */
+typedef struct {
+    double *real; /* heap-allocated, aligned */
+    double *imag; /* heap-allocated, aligned */
+    size_t dim;   /* matrix dimension */
+} lb_matrix_soa_t;
+
+/**
  * A Lindblad system: one Hamiltonian + up to LB_MAX_COPS collapse operators.
  * All operators live in Hilbert space of dimension d (d-level system).
  * The Lindbladian superoperator acts on vec(ρ) ∈ ℂ^(d²).
@@ -77,6 +88,18 @@ int lb_matrix_alloc(lb_matrix_t *m, size_t dim);
 
 /** Free matrix data. Safe to call on zero-initialized struct. */
 void lb_matrix_free(lb_matrix_t *m);
+
+/** Allocate a SoA zero matrix. Returns 0 on success. */
+int lb_matrix_soa_alloc(lb_matrix_soa_t *m, size_t dim);
+
+/** Free SoA matrix data. */
+void lb_matrix_soa_free(lb_matrix_soa_t *m);
+
+/** Convert AoS to SoA */
+int lb_matrix_to_soa(const lb_matrix_t *aos, lb_matrix_soa_t *soa);
+
+/** Convert SoA to AoS */
+int lb_matrix_to_aos(const lb_matrix_soa_t *soa, lb_matrix_t *aos);
 
 /** Copy src into dst (must be same dimension). */
 int lb_matrix_copy(lb_matrix_t *dst, const lb_matrix_t *src);
@@ -145,6 +168,24 @@ int lb_propagate_step(const lb_propagator_t *prop,
                       const lb_matrix_t *rho_in,
                       lb_matrix_t *rho_out);
 
+/**
+ * Apply one propagation step using SoA layout.
+ * Both the propagator and the density matrices are stored in SoA format.
+ * Currently, we can just pass the SoA matrices directly if we convert prop.
+ */
+int lb_propagate_step_soa(const lb_matrix_soa_t *P_soa,
+                          const lb_matrix_soa_t *rho_in,
+                          lb_matrix_soa_t *rho_out);
+
+#ifdef __AVX2__
+/**
+ * Apply one propagation step using explicit AVX2 intrinsics (AoS layout).
+ */
+int lb_propagate_step_avx2(const lb_propagator_t *prop,
+                           const lb_matrix_t *rho_in,
+                           lb_matrix_t *rho_out);
+#endif
+
 /* --------------------------------------------------------------------------
  * Trajectory integration
  * -------------------------------------------------------------------------- */
@@ -166,6 +207,22 @@ int lb_evolve(const lb_system_t *sys,
               lb_matrix_t *rho_out,
               lb_matrix_t *store_trajectory,
               size_t *n_steps_out);
+
+/**
+ * Evolve rho using a pre-built propagator (avoids rebuilding L and P).
+ *
+ * Use this in GRAPE/parameter-sweep workflows where the propagator is
+ * built once and applied to many initial states or accumulated across
+ * piecewise-constant segments.
+ *
+ * n_steps = ceil(t_end / prop->dt).
+ * Returns 0 on success, -1 on error.
+ */
+int lb_evolve_prop(const lb_propagator_t *prop,
+                   const lb_matrix_t *rho0,
+                   size_t n_steps,
+                   lb_matrix_t *rho_out,
+                   lb_matrix_t *store_trajectory);
 
 /* --------------------------------------------------------------------------
  * Diagnostics
