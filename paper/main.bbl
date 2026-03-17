@@ -71,4 +71,9 @@ Nicholas~J. Higham.
 \newblock {\em SIAM Journal on Matrix Analysis and Applications},
   26(4):1179--1193, 2005.
 
+\bibitem{Godbolt}
+Matt Godbolt.
+\newblock Compiler explorer, 2024.
+\newblock \url{https://godbolt.org}.
+
 \end{thebibliography}
