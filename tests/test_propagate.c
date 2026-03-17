@@ -153,6 +153,60 @@ static int test_unitary_purity(void)
     return check("Tr[rho^2] = 1 under unitary evolution (purity)", ok);
 }
 
+static int test_complex_cops(void)
+{
+    puts("test_complex_cops:");
+    /* Complex collapse operator exercises the (L†L)^T path in the Lindbladian.
+     * L = sqrt(gamma) * e^{i*pi/4} * |0><1| — complex-phase amplitude damping.
+     * Physical invariants must still hold: trace = 1, Hermitian, positive diag. */
+    size_t d = 3;
+    lb_system_t sys;
+    lb_system_init(&sys, d);
+    lb_matrix_alloc(&sys.H, d);
+    for (size_t n = 0; n < d; n++)
+        sys.H.data[n * d + n] = (double)n + 0.0*I;
+
+    lb_matrix_t L1 = {NULL, d};
+    lb_matrix_alloc(&L1, d);
+    double gamma = 1.0 / 50.0;
+    /* Complex coupling: sqrt(gamma) * exp(i*pi/4) */
+    L1.data[0 * d + 1] = sqrt(gamma) * (cos(M_PI / 4.0) + sin(M_PI / 4.0) * I);
+    lb_system_add_cop(&sys, &L1);
+    lb_matrix_free(&L1);
+
+    lb_matrix_t rho0 = {NULL, d}, rho_out = {NULL, d};
+    lb_matrix_alloc(&rho0, d);
+    lb_matrix_alloc(&rho_out, d);
+    rho0.data[1 * d + 1] = 1.0 + 0.0*I; /* |1><1| */
+
+    size_t n_steps;
+    lb_evolve(&sys, &rho0, 100.0, 1.0, &rho_out, NULL, &n_steps);
+
+    /* Check trace preservation */
+    double complex tr = lb_trace(&rho_out);
+    int ok_trace = fabs(creal(tr) - 1.0) < TOL_LAX && fabs(cimag(tr)) < TOL_LAX;
+
+    /* Check Hermiticity */
+    int ok_herm = 1;
+    for (size_t i = 0; i < d; i++)
+        for (size_t j = 0; j < d; j++) {
+            double complex a = rho_out.data[i * d + j];
+            double complex b = conj(rho_out.data[j * d + i]);
+            if (cabs(a - b) > TOL_LAX) ok_herm = 0;
+        }
+
+    /* Check diagonal positivity */
+    int ok_pos = 1;
+    for (size_t i = 0; i < d; i++)
+        if (creal(rho_out.data[i * d + i]) < -TOL_LAX) ok_pos = 0;
+
+    int ok = ok_trace && ok_herm && ok_pos;
+
+    lb_matrix_free(&rho0); lb_matrix_free(&rho_out);
+    lb_system_free(&sys);
+    return check("complex L_k: trace + Hermitian + positive", ok);
+}
+
 int main(void)
 {
     printf("=== test_propagate ===\n");
@@ -161,6 +215,7 @@ int main(void)
     failures += !test_hermiticity();
     failures += !test_diagonal_positive();
     failures += !test_unitary_purity();
-    printf("\n%d / 4 tests passed\n", 4 - failures);
+    failures += !test_complex_cops();
+    printf("\n%d / 5 tests passed\n", 5 - failures);
     return failures > 0 ? 1 : 0;
 }

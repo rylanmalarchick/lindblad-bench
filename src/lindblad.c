@@ -24,8 +24,14 @@
 int lb_matrix_alloc(lb_matrix_t *m, size_t dim)
 {
     m->dim  = dim;
-    m->data = calloc(dim * dim, sizeof(double complex));
-    return m->data ? 0 : -1;
+    size_t size = dim * dim * sizeof(double complex);
+    size_t aligned_size = (size + 63) & ~63; /* pad to multiple of 64 */
+    m->data = aligned_alloc(64, aligned_size);
+    if (m->data) {
+        memset(m->data, 0, aligned_size);
+        return 0;
+    }
+    return -1;
 }
 
 void lb_matrix_free(lb_matrix_t *m)
@@ -39,6 +45,53 @@ int lb_matrix_copy(lb_matrix_t *dst, const lb_matrix_t *src)
 {
     if (dst->dim != src->dim) return -1;
     memcpy(dst->data, src->data, src->dim * src->dim * sizeof(double complex));
+    return 0;
+}
+
+int lb_matrix_soa_alloc(lb_matrix_soa_t *m, size_t dim)
+{
+    m->dim = dim;
+    size_t size = dim * dim * sizeof(double);
+    size_t aligned_size = (size + 63) & ~63;
+    m->real = aligned_alloc(64, aligned_size);
+    m->imag = aligned_alloc(64, aligned_size);
+    if (m->real && m->imag) {
+        memset(m->real, 0, aligned_size);
+        memset(m->imag, 0, aligned_size);
+        return 0;
+    }
+    if (m->real) { free(m->real); m->real = NULL; }
+    if (m->imag) { free(m->imag); m->imag = NULL; }
+    return -1;
+}
+
+void lb_matrix_soa_free(lb_matrix_soa_t *m)
+{
+    free(m->real);
+    free(m->imag);
+    m->real = NULL;
+    m->imag = NULL;
+    m->dim = 0;
+}
+
+int lb_matrix_to_soa(const lb_matrix_t *aos, lb_matrix_soa_t *soa)
+{
+    if (aos->dim != soa->dim) return -1;
+    size_t n = aos->dim * aos->dim;
+    for (size_t i = 0; i < n; i++) {
+        soa->real[i] = creal(aos->data[i]);
+        soa->imag[i] = cimag(aos->data[i]);
+    }
+    return 0;
+}
+
+int lb_matrix_to_aos(const lb_matrix_soa_t *soa, lb_matrix_t *aos)
+{
+    if (soa->dim != aos->dim) return -1;
+    size_t n = soa->dim * soa->dim;
+    for (size_t i = 0; i < n; i++) {
+        aos->data[i] = soa->real[i] + I * soa->imag[i];
+    }
     return 0;
 }
 
@@ -131,7 +184,6 @@ int lb_build_lindbladian(const lb_system_t *sys, lb_matrix_t *out)
 
     /* Declare all temporaries at top — zero-initialized for safe goto cleanup */
     lb_matrix_t Id    = {0};
-    lb_matrix_t tmp   = {0};
     lb_matrix_t Hc    = {0};
     lb_matrix_t HkId  = {0};
     lb_matrix_t IdkHc = {0};
@@ -144,7 +196,6 @@ int lb_build_lindbladian(const lb_system_t *sys, lb_matrix_t *out)
     int ret = 0;
 
     if (lb_matrix_alloc(&Id,    d)  != 0) { ret = -1; goto done; }
-    if (lb_matrix_alloc(&tmp,   d2) != 0) { ret = -1; goto done; }
     if (lb_matrix_alloc(&Hc,    d)  != 0) { ret = -1; goto done; }
     if (lb_matrix_alloc(&HkId,  d2) != 0) { ret = -1; goto done; }
     if (lb_matrix_alloc(&IdkHc, d2) != 0) { ret = -1; goto done; }
@@ -176,7 +227,12 @@ int lb_build_lindbladian(const lb_system_t *sys, lb_matrix_t *out)
 
         kron(Lop,    &Lc,    &LkLc);  /* L ⊗ L*   */
         kron(&LdagL, &Id,    &LdLkI); /* L†L ⊗ Id */
-        kron(&Id,    &LdagL, &IkLdL); /* Id ⊗ L†L  (note: (L†L)* = L^T L* for H) */
+
+        /* Row-major vectorization: vec(ρM) = (I⊗M^T)vec(ρ).
+         * For Hermitian M = L†L: M^T = M*, so use conj(LdagL).
+         * Reuse Hc (d×d, no longer needed after coherent part). */
+        mat_conj(&LdagL, &Hc);
+        kron(&Id,    &Hc,    &IkLdL); /* Id ⊗ (L†L)^T */
 
         for (size_t i = 0; i < d2 * d2; i++) {
             out->data[i] += LkLc.data[i]
@@ -187,7 +243,6 @@ int lb_build_lindbladian(const lb_system_t *sys, lb_matrix_t *out)
 
 done:
     lb_matrix_free(&Id);
-    lb_matrix_free(&tmp);
     lb_matrix_free(&Hc);
     lb_matrix_free(&HkId);
     lb_matrix_free(&IdkHc);

@@ -112,13 +112,74 @@ static void run_bench(size_t d, long n_reps)
     double bytes_per_step = (double)(d2 * d2 + 2 * d2) * 16.0;
     double gbytes_s = (bytes_per_step * (double)n_reps) / (s_total * 1e9);
 
+    /* SoA Benchmarking */
+    lb_matrix_soa_t P_soa = {0}, rho_in_soa = {0}, rho_out_soa = {0};
+    lb_matrix_soa_alloc(&P_soa, d2); /* Propagator is d2 x d2, but in SoA it is a 1D d4 array still */
+    lb_matrix_soa_alloc(&rho_in_soa, d); /* rho is d x d */
+    lb_matrix_soa_alloc(&rho_out_soa, d);
+    lb_matrix_to_soa(&prop.P, &P_soa);
+    lb_matrix_to_soa(&rho_in, &rho_in_soa);
+
+    /* Warm-up SoA */
+    for (int w = 0; w < 10; w++) {
+        lb_propagate_step_soa(&P_soa, &rho_in_soa, &rho_out_soa);
+    }
+
+    /* Timed loop SoA */
+    struct timespec t0_soa, t1_soa;
+    clock_gettime(CLOCK_MONOTONIC, &t0_soa);
+    for (long r = 0; r < n_reps; r++) {
+        lb_propagate_step_soa(&P_soa, &rho_in_soa, &rho_out_soa);
+    }
+    clock_gettime(CLOCK_MONOTONIC, &t1_soa);
+
+    long long total_ns_soa = ns_diff(t0_soa, t1_soa);
+    double ns_per_step_soa = (double)total_ns_soa / (double)n_reps;
+    double s_total_soa     = (double)total_ns_soa * 1e-9;
+    double gflops_soa = (flops_per_step * (double)n_reps) / (s_total_soa * 1e9);
+    double gbytes_s_soa = (bytes_per_step * (double)n_reps) / (s_total_soa * 1e9);
+
+#ifdef __AVX2__
+    /* Warm-up AVX2 */
+    for (int w = 0; w < 10; w++) {
+        lb_propagate_step_avx2(&prop, &rho_in, &rho_out);
+    }
+
+    struct timespec t0_avx2, t1_avx2;
+    clock_gettime(CLOCK_MONOTONIC, &t0_avx2);
+    for (long r = 0; r < n_reps; r++) {
+        lb_propagate_step_avx2(&prop, &rho_in, &rho_out);
+    }
+    clock_gettime(CLOCK_MONOTONIC, &t1_avx2);
+
+    long long total_ns_avx2 = ns_diff(t0_avx2, t1_avx2);
+    double ns_per_step_avx2 = (double)total_ns_avx2 / (double)n_reps;
+    double s_total_avx2     = (double)total_ns_avx2 * 1e-9;
+    double gflops_avx2 = (flops_per_step * (double)n_reps) / (s_total_avx2 * 1e9);
+    double gbytes_s_avx2 = (bytes_per_step * (double)n_reps) / (s_total_avx2 * 1e9);
+#endif
+
     printf("  n_reps       : %ld\n", n_reps);
-    printf("  total time   : %.3f ms\n", (double)total_ns / 1e6);
-    printf("  ns / step    : %.2f ns\n", ns_per_step);
-    printf("  throughput   : %.3f GFLOP/s\n", gflops);
-    printf("  bandwidth    : %.3f GB/s\n", gbytes_s);
+    printf("  [AoS] total  : %.3f ms\n", (double)total_ns / 1e6);
+    printf("  [AoS] ns/step: %.2f ns\n", ns_per_step);
+    printf("  [AoS] GFLOP/s: %.3f\n", gflops);
+    printf("  [AoS] GB/s   : %.3f\n", gbytes_s);
+    printf("  [SoA] total  : %.3f ms\n", (double)total_ns_soa / 1e6);
+    printf("  [SoA] ns/step: %.2f ns\n", ns_per_step_soa);
+    printf("  [SoA] GFLOP/s: %.3f\n", gflops_soa);
+    printf("  [SoA] GB/s   : %.3f\n", gbytes_s_soa);
+#ifdef __AVX2__
+    printf("  [AVX] total  : %.3f ms\n", (double)total_ns_avx2 / 1e6);
+    printf("  [AVX] ns/step: %.2f ns\n", ns_per_step_avx2);
+    printf("  [AVX] GFLOP/s: %.3f\n", gflops_avx2);
+    printf("  [AVX] GB/s   : %.3f\n", gbytes_s_avx2);
+#endif
     printf("  arith intens : %.4f FLOP/byte\n",
            flops_per_step / bytes_per_step);
+
+    lb_matrix_soa_free(&P_soa);
+    lb_matrix_soa_free(&rho_in_soa);
+    lb_matrix_soa_free(&rho_out_soa);
 
     lb_matrix_free(&rho_in);
     lb_matrix_free(&rho_out);
