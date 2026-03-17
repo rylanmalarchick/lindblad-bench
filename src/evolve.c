@@ -15,6 +15,60 @@
 #include <string.h>
 #include <math.h>
 
+/* --------------------------------------------------------------------------
+ * lb_evolve_prop — evolve with a pre-built propagator
+ *
+ * This is the GRAPE-friendly entry point: caller builds L and P once,
+ * then calls this for each trajectory / segment / initial state.
+ * -------------------------------------------------------------------------- */
+int lb_evolve_prop(const lb_propagator_t *prop,
+                   const lb_matrix_t *rho0,
+                   size_t n_steps,
+                   lb_matrix_t *rho_out,
+                   lb_matrix_t *store_trajectory)
+{
+    size_t d  = prop->d;
+    int ret   = 0;
+
+    lb_matrix_t rho_cur  = {NULL, d};
+    lb_matrix_t rho_next = {NULL, d};
+    if (lb_matrix_alloc(&rho_cur,  d) != 0) { return -1; }
+    if (lb_matrix_alloc(&rho_next, d) != 0) { lb_matrix_free(&rho_cur); return -1; }
+
+    memcpy(rho_cur.data, rho0->data, d * d * sizeof(double complex));
+
+    if (store_trajectory) {
+        memcpy(store_trajectory[0].data, rho_cur.data,
+               d * d * sizeof(double complex));
+    }
+
+    for (size_t step = 0; step < n_steps; step++) {
+        if (lb_propagate_step(prop, &rho_cur, &rho_next) != 0) {
+            ret = -1;
+            goto done;
+        }
+
+        double complex *tmp = rho_cur.data;
+        rho_cur.data        = rho_next.data;
+        rho_next.data       = tmp;
+
+        if (store_trajectory) {
+            memcpy(store_trajectory[step + 1].data, rho_cur.data,
+                   d * d * sizeof(double complex));
+        }
+    }
+
+    memcpy(rho_out->data, rho_cur.data, d * d * sizeof(double complex));
+
+done:
+    lb_matrix_free(&rho_cur);
+    lb_matrix_free(&rho_next);
+    return ret;
+}
+
+/* --------------------------------------------------------------------------
+ * lb_evolve — convenience wrapper that builds L and P internally
+ * -------------------------------------------------------------------------- */
 int lb_evolve(const lb_system_t *sys,
               const lb_matrix_t *rho0,
               double t_end,
@@ -25,7 +79,6 @@ int lb_evolve(const lb_system_t *sys,
 {
     size_t d  = sys->d;
     size_t d2 = d * d;
-    int ret   = 0;
 
     /* Build Lindbladian superoperator */
     lb_matrix_t L = {NULL, d2};
@@ -40,48 +93,10 @@ int lb_evolve(const lb_system_t *sys,
     }
     lb_matrix_free(&L);
 
-    /* Allocate working state */
-    lb_matrix_t rho_cur  = {NULL, d};
-    lb_matrix_t rho_next = {NULL, d};
-    if (lb_matrix_alloc(&rho_cur,  d) != 0) { ret = -1; goto done; }
-    if (lb_matrix_alloc(&rho_next, d) != 0) { ret = -1; goto done; }
-
-    /* Copy initial state */
-    memcpy(rho_cur.data, rho0->data, d * d * sizeof(double complex));
-
     size_t n_steps = (size_t)ceil(t_end / dt);
+    int ret = lb_evolve_prop(&prop, rho0, n_steps, rho_out, store_trajectory);
 
-    /* Store t=0 state if trajectory requested */
-    if (store_trajectory) {
-        memcpy(store_trajectory[0].data, rho_cur.data,
-               d * d * sizeof(double complex));
-    }
-
-    /* Integration loop */
-    for (size_t step = 0; step < n_steps; step++) {
-        if (lb_propagate_step(&prop, &rho_cur, &rho_next) != 0) {
-            ret = -1;
-            goto done;
-        }
-
-        /* Swap buffers (no copy) */
-        double complex *tmp = rho_cur.data;
-        rho_cur.data        = rho_next.data;
-        rho_next.data       = tmp;
-
-        if (store_trajectory) {
-            memcpy(store_trajectory[step + 1].data, rho_cur.data,
-                   d * d * sizeof(double complex));
-        }
-    }
-
-    /* Write final state */
-    memcpy(rho_out->data, rho_cur.data, d * d * sizeof(double complex));
     if (n_steps_out) *n_steps_out = n_steps;
-
-done:
-    lb_matrix_free(&rho_cur);
-    lb_matrix_free(&rho_next);
     lb_propagator_free(&prop);
     return ret;
 }

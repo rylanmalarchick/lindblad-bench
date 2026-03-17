@@ -35,7 +35,7 @@ MACHINES = {
     "i9-13980HX": {
         "name": "Intel Core i9-13980HX (theLittleMachine)",
         "L1":   49_152,       # 48 KB per P-core (data)
-        "L2":   1_310_720,    # 1.25 MB per P-core
+        "L2":   2_097_152,    # 2 MB per P-core
         "L3":   36_700_160,   # 35 MB shared
         "peak_gflops": 128.0, # ~128 GFLOP/s (AVX2, FP64, 2 FMAs/cycle, 3.0 GHz base)
         "peak_gbytes":  80.0, # ~80 GB/s DDR5

@@ -1,5 +1,5 @@
 # Build artifacts
-build/
+build*/
 cmake-build-*/
 *.o
 *.a
@@ -16,8 +16,7 @@ dist/
 venv/
 *.egg
 
-# Generated figures
-paper/figures/*.pdf
+# Generated figures (tracked via git add -f for paper)
 paper/figures/*.png
 paper/figures/*.svg
 
@@ -33,6 +32,13 @@ paper/figures/*.svg
 Thumbs.db
 
 # Benchmark outputs
-benchmarks/*.csv
 benchmarks/*.json
 analysis/data/
+
+# LaTeX artifacts
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.blg
+paper/arxiv_submission/
+paper/arxiv_submission.tar.gz

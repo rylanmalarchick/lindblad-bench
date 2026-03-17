@@ -7,10 +7,6 @@
  * The hot path is lb_propagate_step:
  *   vec(ρ_out) = P · vec(ρ_in)
  *   then reshape back to d×d.
- *
- * This is a (d²)×(d²) complex matvec — the innermost loop of any Lindblad
- * trajectory simulation. At d=3: 9×9, at d=9: 81×81, at d=27: 729×729.
- * Working sets: 1.3 KB (L1), 105 KB (L2), 8.5 MB (L3).
  */
 
 #include "propagate.h"
@@ -19,6 +15,10 @@
 #include <string.h>
 #include <math.h>
 #include <complex.h>
+
+#ifdef __AVX2__
+#include <immintrin.h>
+#endif
 
 /* --------------------------------------------------------------------------
  * Propagator build
@@ -97,3 +97,104 @@ int lb_propagate_step(const lb_propagator_t *prop,
      * No reshape needed: row-major vectorization == row-major matrix. */
     return 0;
 }
+
+int lb_propagate_step_soa(const lb_matrix_soa_t *P_soa,
+                          const lb_matrix_soa_t *rho_in,
+                          lb_matrix_soa_t *rho_out)
+{
+    size_t d2 = P_soa->dim; /* P is d2 x d2, rho is effectively d x d so size is d2 */
+
+    const double *P_re = P_soa->real;
+    const double *P_im = P_soa->imag;
+    const double *vec_in_re = rho_in->real;
+    const double *vec_in_im = rho_in->imag;
+    double *vec_out_re = rho_out->real;
+    double *vec_out_im = rho_out->imag;
+
+    /* Matvec for SoA: (A + iB)(x + iy) = (Ax - By) + i(Ay + Bx) */
+    for (size_t i = 0; i < d2; i++) {
+        double acc_re = 0.0;
+        double acc_im = 0.0;
+        for (size_t j = 0; j < d2; j++) {
+            double p_re = P_re[i * d2 + j];
+            double p_im = P_im[i * d2 + j];
+            double v_re = vec_in_re[j];
+            double v_im = vec_in_im[j];
+
+            acc_re += (p_re * v_re) - (p_im * v_im);
+            acc_im += (p_re * v_im) + (p_im * v_re);
+        }
+        vec_out_re[i] = acc_re;
+        vec_out_im[i] = acc_im;
+    }
+
+    return 0;
+}
+
+#ifdef __AVX2__
+int lb_propagate_step_avx2(const lb_propagator_t *prop,
+                           const lb_matrix_t *rho_in,
+                           lb_matrix_t *rho_out)
+{
+    size_t d = prop->d;
+    size_t d2 = d * d;
+
+    const double *P = (const double *)prop->P.data;
+    const double *vec_in = (const double *)rho_in->data;
+    double *vec_out = (double *)rho_out->data;
+
+    /*
+     * Manual AVX2 for complex matrix-vector multiplication.
+     * We load 2 complex numbers at a time into a 256-bit register (4 doubles).
+     * [P_re1, P_im1, P_re2, P_im2] and [v_re1, v_im1, v_re2, v_im2]
+     */
+    for (size_t i = 0; i < d2; i++) {
+        __m256d acc = _mm256_setzero_pd();
+
+        size_t j = 0;
+        /* Process 2 complex elements per iteration */
+        for (; j + 1 < d2; j += 2) {
+            /* Use unaligned loads — row offsets may not be 32-byte aligned
+             * when d² is odd (e.g. d=3, d²=9). No penalty on Haswell+. */
+            __m256d p_vec = _mm256_loadu_pd(&P[(i * d2 + j) * 2]);
+            __m256d v_vec = _mm256_loadu_pd(&vec_in[j * 2]);
+
+            /* Broadcast real/imag parts of P elements */
+            __m256d p_re = _mm256_movedup_pd(p_vec);       /* [re0, re0, re1, re1] */
+            __m256d p_im = _mm256_shuffle_pd(p_vec, p_vec, 0xF); /* [im0, im0, im1, im1] */
+
+            /* Swap real/imag in v for cross-product terms */
+            __m256d v_swap = _mm256_shuffle_pd(v_vec, v_vec, 0x5); /* [im, re, im, re] */
+
+            __m256d prod1 = _mm256_mul_pd(p_re, v_vec);
+            __m256d prod2 = _mm256_mul_pd(p_im, v_swap);
+
+            /* addsub: even lanes subtract (re), odd lanes add (im) */
+            acc = _mm256_add_pd(acc, _mm256_addsub_pd(prod1, prod2));
+        }
+
+        /* Horizontal reduce: acc = [re0, im0, re1, im1] */
+        double acc_arr[4];
+        _mm256_storeu_pd(acc_arr, acc);
+
+        double total_re = acc_arr[0] + acc_arr[2];
+        double total_im = acc_arr[1] + acc_arr[3];
+
+        /* Remainder scalar loop */
+        for (; j < d2; j++) {
+            double p_re = P[(i * d2 + j) * 2];
+            double p_im = P[(i * d2 + j) * 2 + 1];
+            double v_re = vec_in[j * 2];
+            double v_im = vec_in[j * 2 + 1];
+
+            total_re += (p_re * v_re) - (p_im * v_im);
+            total_im += (p_re * v_im) + (p_im * v_re);
+        }
+
+        vec_out[i * 2] = total_re;
+        vec_out[i * 2 + 1] = total_im;
+    }
+
+    return 0;
+}
+#endif

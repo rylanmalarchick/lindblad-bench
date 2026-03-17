@@ -25,7 +25,7 @@ import re
 try:
     import numpy as np
     import matplotlib.pyplot as plt
-    import matplotlib.ticker as ticker
+    import matplotlib.patches as mpatches
     HAS_DEPS = True
 except ImportError:
     HAS_DEPS = False
@@ -131,9 +131,6 @@ def plot(measured: list[dict], machine: dict, outpath: str) -> None:
 
 
 def main() -> None:
-    import matplotlib.patches as mpatches  # noqa: F401 (needed in plot())
-    globals()["mpatches"] = mpatches
-
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--stdin", action="store_true",
