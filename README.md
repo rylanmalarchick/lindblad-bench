@@ -2,7 +2,7 @@
 
 **Cache hierarchy and vectorization analysis of Lindblad master equation simulation for near-term quantum control.**
 
-> Preprint: *coming soon* <!-- replace with arXiv link -->
+https://arxiv.org/abs/2603.18052
 
 ## Overview
 
