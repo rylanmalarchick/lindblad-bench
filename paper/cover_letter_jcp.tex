@@ -1,0 +1,51 @@
+\documentclass[11pt]{letter}
+
+\usepackage[T1]{fontenc}
+\usepackage[margin=1in]{geometry}
+
+\signature{Rylan Malarchick\\Department of Engineering Physics\\Embry-Riddle Aeronautical University\\Daytona Beach, FL 32114\\malarchr@my.erau.edu}
+
+\begin{document}
+
+\begin{letter}{Editors\\Journal of Computational Physics}
+
+\opening{Dear Editors,}
+
+Please consider the enclosed manuscript, ``Hardware-Aware Performance
+Characterization of Small Dense Lindblad Propagation for Near-Term Quantum
+Control,'' for publication in the \textit{Journal of Computational Physics}.
+
+This paper is a computational physics comparison study of dense Lindblad
+propagation in the small-matrix regime most common in near-term transmon
+control. The main result is not a single hardware winner, but a measured map
+of operating regimes across two x86 CPUs, two NVIDIA GPUs, and a Tang Nano
+20K FPGA. The manuscript combines working-set analysis with empirical
+Roofline context, separates host-visible and kernel-only GPU timing, and
+includes an end-to-end GRAPE-style benchmark against released QuTiP 5.2.3.
+That application benchmark matters because it shows where kernel speedups do
+and do not survive into control workflows: the optimized C path wins at
+$d=3$ and $d=9$, but loses at $d=27$ because propagator construction, not
+propagation, dominates the landscape-point cost.
+
+I believe the manuscript fits JCP because it is centered on computational
+methods, performance characterization, and comparison against established
+approaches. The paper is intended to be useful to authors of quantum-control
+software who need to know which hardware helps in this specific computational
+regime, which timing model is relevant, and where further algorithmic work is
+still needed.
+
+This manuscript is original, has not been published previously, and is not
+under consideration for publication elsewhere. All results reported in the
+manuscript are traceable to code, timing logs, and figure-generation scripts
+available in the accompanying repository. A declaration of generative AI and
+AI-assisted technologies is included in the manuscript in accordance with the
+journal's policy. I confirm that I have no competing financial or
+non-financial interests related to this submission.
+
+Thank you for your consideration.
+
+\closing{Sincerely,}
+
+\end{letter}
+
+\end{document}

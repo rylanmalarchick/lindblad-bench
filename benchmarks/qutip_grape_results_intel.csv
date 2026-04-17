@@ -1,0 +1,4 @@
+d,solver_mode,n_segments,steps_per_seg,n_trials,ms_per_trajectory,ns_per_step,qutip_version
+3,default,100,20,20,107.38824484999999,53694.122424999994,5.2.3
+9,default,50,20,5,101.791662,101791.662,5.2.3
+27,default,20,20,1,1903.071214,4757678.035,5.2.3

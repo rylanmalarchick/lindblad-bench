@@ -1,0 +1,26 @@
+lindblad-bench: GRAPE-style piecewise-constant propagator chain
+Simulates: build N_seg propagators, chain them as rho = P_N...P_1 rho0
+
+=== d=3, 100 segments × 20 steps (1000.0 ns total pulse) ===
+  P size = 1.3 KB, L size = 1.3 KB
+  [build] all propagators : 1.187 ms (0.012 ms/segment)
+  [chain] ms/trajectory   : 0.190 ms (2000 total steps)
+  [chain] ns/step         : 94.98 ns
+  [total] landscape point : 1.377 ms (build + 1 chain)
+  [total] landscape pts/s : 726.2
+
+=== d=9, 50 segments × 20 steps (500.0 ns total pulse) ===
+  P size = 102.5 KB, L size = 102.5 KB
+  [build] all propagators : 76.708 ms (1.534 ms/segment)
+  [chain] ms/trajectory   : 6.144 ms (1000 total steps)
+  [chain] ns/step         : 6143.85 ns
+  [total] landscape point : 82.852 ms (build + 1 chain)
+  [total] landscape pts/s : 12.1
+
+=== d=27, 20 segments × 20 steps (200.0 ns total pulse) ===
+  P size = 8303.8 KB, L size = 8303.8 KB
+  [build] all propagators : 8448.313 ms (422.416 ms/segment)
+  [chain] ms/trajectory   : 117.415 ms (400 total steps)
+  [chain] ns/step         : 293537.00 ns
+  [total] landscape point : 8565.728 ms (build + 1 chain)
+  [total] landscape pts/s : 0.1

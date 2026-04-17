@@ -79,6 +79,23 @@ typedef struct {
     size_t d;        /* Hilbert space dimension */
 } lb_propagator_t;
 
+/**
+ * Reusable scratch buffers for the Padé [13/13] matrix exponential.
+ * This avoids repeated large allocations when building many propagators with
+ * the same superoperator dimension, as in GRAPE segment sweeps.
+ */
+typedef struct {
+    lb_matrix_t As;
+    lb_matrix_t tmp;
+    lb_matrix_t A2;
+    lb_matrix_t A4;
+    lb_matrix_t A6;
+    lb_matrix_t U;
+    lb_matrix_t V;
+    lb_matrix_t W;
+    size_t dim;
+} lb_expm_workspace_t;
+
 /* --------------------------------------------------------------------------
  * Matrix allocation / deallocation
  * -------------------------------------------------------------------------- */
@@ -130,6 +147,20 @@ int lb_system_add_cop(lb_system_t *sys, const lb_matrix_t *L_k);
  */
 int lb_build_lindbladian(const lb_system_t *sys, lb_matrix_t *out);
 
+/**
+ * Build only the coherent Lindblad superoperator contribution from H:
+ *   -i(H⊗I - I⊗H*)
+ * out must be pre-allocated with dimension d² × d².
+ */
+int lb_build_coherent_superop(const lb_matrix_t *H, lb_matrix_t *out);
+
+/**
+ * Build only the dissipative Lindblad superoperator contribution from the
+ * collapse operators stored in sys.
+ * out must be pre-allocated with dimension d² × d².
+ */
+int lb_build_dissipator_superop(const lb_system_t *sys, lb_matrix_t *out);
+
 /* --------------------------------------------------------------------------
  * Matrix exponential
  * -------------------------------------------------------------------------- */
@@ -145,6 +176,12 @@ int lb_build_lindbladian(const lb_system_t *sys, lb_matrix_t *out);
  */
 int lb_expm(const lb_matrix_t *A, lb_matrix_t *out);
 
+/** Allocate reusable scratch storage for lb_build_propagator_ws(). */
+int lb_expm_workspace_alloc(lb_expm_workspace_t *ws, size_t dim);
+
+/** Free workspace allocated by lb_expm_workspace_alloc(). */
+void lb_expm_workspace_free(lb_expm_workspace_t *ws);
+
 /* --------------------------------------------------------------------------
  * Propagator
  * -------------------------------------------------------------------------- */
@@ -154,6 +191,15 @@ int lb_expm(const lb_matrix_t *A, lb_matrix_t *out);
  * Caches the result in prop for reuse across timesteps.
  */
 int lb_build_propagator(const lb_matrix_t *L, double dt, lb_propagator_t *prop);
+
+/**
+ * Build the propagator using reusable matrix-exponential scratch storage.
+ * This is the GRAPE-oriented path for many propagators at fixed dimension.
+ */
+int lb_build_propagator_ws(const lb_matrix_t *L,
+                           double dt,
+                           lb_propagator_t *prop,
+                           lb_expm_workspace_t *ws);
 
 /** Free propagator memory. */
 void lb_propagator_free(lb_propagator_t *prop);
@@ -167,6 +213,17 @@ void lb_propagator_free(lb_propagator_t *prop);
 int lb_propagate_step(const lb_propagator_t *prop,
                       const lb_matrix_t *rho_in,
                       lb_matrix_t *rho_out);
+
+/**
+ * Apply one propagation step to a batch of independent density matrices.
+ *
+ * rho_in_batch and rho_out_batch must each contain batch_size d×d matrices.
+ * This is the batch-parallel entry point used by threaded and GPU backends.
+ */
+int lb_propagate_step_batch(const lb_propagator_t *prop,
+                            const lb_matrix_t *rho_in_batch,
+                            lb_matrix_t *rho_out_batch,
+                            size_t batch_size);
 
 /**
  * Apply one propagation step using SoA layout.
@@ -223,6 +280,18 @@ int lb_evolve_prop(const lb_propagator_t *prop,
                    size_t n_steps,
                    lb_matrix_t *rho_out,
                    lb_matrix_t *store_trajectory);
+
+/**
+ * Evolve a batch of independent initial states using a pre-built propagator.
+ *
+ * rho0_batch and rho_out_batch must each contain batch_size d×d matrices.
+ * Trajectories are independent; no trajectory storage is performed.
+ */
+int lb_evolve_prop_batch(const lb_propagator_t *prop,
+                         const lb_matrix_t *rho0_batch,
+                         size_t batch_size,
+                         size_t n_steps,
+                         lb_matrix_t *rho_out_batch);
 
 /* --------------------------------------------------------------------------
  * Diagnostics

@@ -1,0 +1,102 @@
+\begin{thebibliography}{10}
+\expandafter\ifx\csname url\endcsname\relax
+  \def\url#1{\texttt{#1}}\fi
+\expandafter\ifx\csname urlprefix\endcsname\relax\def\urlprefix{URL }\fi
+\expandafter\ifx\csname href\endcsname\relax
+  \def\href#1#2{#2} \def\path#1{#1}\fi
+
+\bibitem{Lindblad1976}
+G.~Lindblad, On the generators of quantum dynamical semigroups, Communications
+  in Mathematical Physics 48~(2) (1976) 119--130.
+\newblock \href {https://doi.org/10.1007/BF01608499}
+  {\path{doi:10.1007/BF01608499}}.
+
+\bibitem{Gorini1976}
+V.~Gorini, A.~Kossakowski, E.~C.~G. Sudarshan, Completely positive dynamical
+  semigroups of $n$-level systems, Journal of Mathematical Physics 17~(5)
+  (1976) 821--825.
+\newblock \href {https://doi.org/10.1063/1.522979}
+  {\path{doi:10.1063/1.522979}}.
+
+\bibitem{Khaneja2005}
+N.~Khaneja, T.~Reiss, C.~Kehlet, T.~Schulte-Herbr{\"u}ggen, S.~J. Glaser,
+  Optimal control of coupled spin dynamics: design of {NMR} pulse sequences by
+  gradient ascent algorithms, Journal of Magnetic Resonance 172~(2) (2005)
+  296--305.
+\newblock \href {https://doi.org/10.1016/j.jmr.2004.11.004}
+  {\path{doi:10.1016/j.jmr.2004.11.004}}.
+
+\bibitem{Williams2009}
+S.~Williams, A.~Waterman, D.~Patterson, Roofline: An insightful visual
+  performance model for multicore architectures, Communications of the ACM
+  52~(4) (2009) 65--76.
+\newblock \href {https://doi.org/10.1145/1498765.1498785}
+  {\path{doi:10.1145/1498765.1498785}}.
+
+\bibitem{Johansson2012}
+J.~R. Johansson, P.~D. Nation, F.~Nori, {QuTiP}: An open-source {Python}
+  framework for the dynamics of open quantum systems, Computer Physics
+  Communications 183~(8) (2012) 1760--1772.
+\newblock \href {https://doi.org/10.1016/j.cpc.2012.02.021}
+  {\path{doi:10.1016/j.cpc.2012.02.021}}.
+
+\bibitem{Johansson2013}
+J.~R. Johansson, P.~D. Nation, F.~Nori, {QuTiP} 2: A {Python} framework for the
+  dynamics of open quantum systems, Computer Physics Communications 184~(4)
+  (2013) 1234--1240.
+\newblock \href {https://doi.org/10.1016/j.cpc.2012.11.019}
+  {\path{doi:10.1016/j.cpc.2012.11.019}}.
+
+\bibitem{Lambert2026}
+N.~Lambert, E.~Gigu{\`e}re, P.~Menczel, B.~Li, P.~Hopf, G.~Su{\'a}rez, M.~Gali,
+  J.~Lishman, R.~Gadhvi, R.~Agarwal, A.~Galicia, N.~Shammah, P.~D. Nation,
+  J.~R. Johansson, S.~Ahmed, S.~Cross, A.~Pitchford, F.~Nori, {QuTiP} 5: The
+  quantum toolbox in {Python}, Physics Reports 1153 (2026) 1--62.
+\newblock \href {https://doi.org/10.1016/j.physrep.2025.10.001}
+  {\path{doi:10.1016/j.physrep.2025.10.001}}.
+
+\bibitem{QuTiPJax}
+{QuTiP developers}, {qutip-jax} 0.1.1 documentation: {JAX} backend in {QuTiP}'s
+  solver, version 0.1.1, accessed April 17, 2026,
+  \url{https://qutip-jax.readthedocs.io/en/stable/solver.html} (2026).
+
+\bibitem{Guilmin2024}
+P.~Guilmin, R.~Gautier, A.~Le~Bris, E.~Music, D.~E. Volpe, dynamiqs: an
+  open-source {Python} library for {GPU}-accelerated differentiable simulation
+  of quantum systems (2024).
+\newblock \href {http://arxiv.org/abs/2411.17166} {\path{arXiv:2411.17166}}.
+
+\bibitem{Diffrax2026}
+P.~Kidger, Diffrax documentation: numerical differential equation solvers in
+  {JAX}, accessed April 17, 2026, \url{https://docs.kidger.site/diffrax/}
+  (2026).
+
+\bibitem{Meyerov2019}
+I.~Meyerov, M.~Karpov, A.~Kazakov, et~al., Transforming the lindblad equation
+  into a system of linear equations: Performance optimization and
+  parallelization of an algorithm (2019).
+\newblock \href {http://arxiv.org/abs/1912.01491} {\path{arXiv:1912.01491}}.
+
+\bibitem{Gebauer2020}
+R.~Gebauer, M.~Pechal, J.-C. Besse, et~al., State preparation of a fluxonium
+  qubit with feedback from a custom {FPGA}-based platform (2020).
+\newblock \href {http://arxiv.org/abs/1912.06814} {\path{arXiv:1912.06814}}.
+
+\bibitem{Yang2021}
+Y.~Yang, C.~Song, W.~Wang, et~al., {FPGA}-based electronic system for the
+  control and readout of superconducting quantum processors (2021).
+\newblock \href {http://arxiv.org/abs/2110.07965} {\path{arXiv:2110.07965}}.
+
+\bibitem{Caune2024}
+N.~Caune, R.~Acharya, A.~D. Corcoles, et~al., Demonstrating real-time and
+  low-latency quantum error correction with superconducting qubits (2024).
+\newblock \href {http://arxiv.org/abs/2410.05202} {\path{arXiv:2410.05202}}.
+
+\bibitem{Higham2005}
+N.~J. Higham, The scaling and squaring method for the matrix exponential
+  revisited, SIAM Journal on Matrix Analysis and Applications 26~(4) (2005)
+  1179--1193.
+\newblock \href {https://doi.org/10.1137/04061101X}
+  {\path{doi:10.1137/04061101X}}.
+
+\end{thebibliography}

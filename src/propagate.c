@@ -24,9 +24,14 @@
  * Propagator build
  * -------------------------------------------------------------------------- */
 
-int lb_build_propagator(const lb_matrix_t *L, double dt, lb_propagator_t *prop)
+int lb_build_propagator_ws(const lb_matrix_t *L,
+                           double dt,
+                           lb_propagator_t *prop,
+                           lb_expm_workspace_t *ws)
 {
     size_t d2 = L->dim;
+
+    if (!L || !prop || !ws || ws->dim != d2) return -1;
 
     prop->dt = dt;
     prop->d  = (size_t)round(sqrt((double)d2)); /* d² -> d */
@@ -34,19 +39,29 @@ int lb_build_propagator(const lb_matrix_t *L, double dt, lb_propagator_t *prop)
     /* Allocate propagator matrix */
     if (lb_matrix_alloc(&prop->P, d2) != 0) return -1;
 
-    /* Scale L by dt: Ldt = L * dt */
-    lb_matrix_t Ldt = {NULL, d2};
-    if (lb_matrix_alloc(&Ldt, d2) != 0) {
+    /* Scale L by dt into workspace scratch and exponentiate in-place. */
+    for (size_t i = 0; i < d2 * d2; i++) {
+        ws->tmp.data[i] = L->data[i] * dt;
+    }
+
+    if (lb_expm_ws(&ws->tmp, &prop->P, ws) != 0) {
         lb_matrix_free(&prop->P);
         return -1;
     }
-    for (size_t i = 0; i < d2 * d2; i++) {
-        Ldt.data[i] = L->data[i] * dt;
-    }
 
-    /* P = expm(L * dt) */
-    int ret = lb_expm(&Ldt, &prop->P);
-    lb_matrix_free(&Ldt);
+    return 0;
+}
+
+int lb_build_propagator(const lb_matrix_t *L, double dt, lb_propagator_t *prop)
+{
+    lb_expm_workspace_t ws = {0};
+    int ret;
+
+    if (!L || !prop) return -1;
+    if (lb_expm_workspace_alloc(&ws, L->dim) != 0) return -1;
+
+    ret = lb_build_propagator_ws(L, dt, prop, &ws);
+    lb_expm_workspace_free(&ws);
     return ret;
 }
 
@@ -96,6 +111,43 @@ int lb_propagate_step(const lb_propagator_t *prop,
     /* rho_out is already shaped d×d (row-major, same layout as ρ matrix).
      * No reshape needed: row-major vectorization == row-major matrix. */
     return 0;
+}
+
+int lb_propagate_step_batch(const lb_propagator_t *prop,
+                            const lb_matrix_t *rho_in_batch,
+                            lb_matrix_t *rho_out_batch,
+                            size_t batch_size)
+{
+    if (!prop || (!rho_in_batch && batch_size > 0) || (!rho_out_batch && batch_size > 0)) {
+        return -1;
+    }
+
+#ifdef _OPENMP
+    int ret = 0;
+    #pragma omp parallel for if (batch_size > 1) schedule(static) reduction(|:ret)
+    for (ptrdiff_t b = 0; b < (ptrdiff_t)batch_size; b++) {
+        if (rho_in_batch[b].dim != prop->d || rho_out_batch[b].dim != prop->d) {
+            ret = 1;
+            continue;
+        }
+        if (lb_propagate_step(prop, &rho_in_batch[b], &rho_out_batch[b]) != 0) {
+            ret = 1;
+        }
+    }
+
+    return ret ? -1 : 0;
+#else
+    for (size_t b = 0; b < batch_size; b++) {
+        if (rho_in_batch[b].dim != prop->d || rho_out_batch[b].dim != prop->d) {
+            return -1;
+        }
+        if (lb_propagate_step(prop, &rho_in_batch[b], &rho_out_batch[b]) != 0) {
+            return -1;
+        }
+    }
+
+    return 0;
+#endif
 }
 
 int lb_propagate_step_soa(const lb_matrix_soa_t *P_soa,

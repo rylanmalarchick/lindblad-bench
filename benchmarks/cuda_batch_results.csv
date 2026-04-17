@@ -1,0 +1,13 @@
+machine,gpu_name,git_commit,d,batch_size,n_reps,median_host_ns_per_state_step,median_host_gflops,median_host_gbytes_s,median_kernel_ns_per_state_step,median_kernel_gflops,median_kernel_gbytes_s
+theLittleMachine,NVIDIA GeForce RTX 4070 Laptop GPU,3eafeb0-dirty,3,1,20,83396.75,0.00777,0.018994,3670.4,0.176547,0.431561
+theLittleMachine,NVIDIA GeForce RTX 4070 Laptop GPU,3eafeb0-dirty,3,8,20,10512.69,0.06164,0.150675,525.6,1.232877,3.013698
+theLittleMachine,NVIDIA GeForce RTX 4070 Laptop GPU,3eafeb0-dirty,3,32,20,2704.48,0.239603,0.585696,195.45,3.315425,8.104373
+theLittleMachine,NVIDIA GeForce RTX 4070 Laptop GPU,3eafeb0-dirty,3,128,20,728.22,0.889839,2.175162,50.2,12.908364,31.553779
+theLittleMachine,NVIDIA GeForce RTX 4070 Laptop GPU,3eafeb0-dirty,9,1,20,106210.2,0.49419,1.012784,14691.2,3.572751,7.321935
+theLittleMachine,NVIDIA GeForce RTX 4070 Laptop GPU,3eafeb0-dirty,9,8,20,16113.01,3.257491,6.675847,4189.4,12.528762,25.676228
+theLittleMachine,NVIDIA GeForce RTX 4070 Laptop GPU,3eafeb0-dirty,9,32,20,4589.46,11.436645,23.438063,1051.05,49.938635,102.343375
+theLittleMachine,NVIDIA GeForce RTX 4070 Laptop GPU,3eafeb0-dirty,9,128,20,1597.41,32.858154,67.338933,512.79,102.358177,209.771079
+theLittleMachine,NVIDIA GeForce RTX 4070 Laptop GPU,3eafeb0-dirty,27,1,20,1467052.75,2.898006,5.811914,289774.39,14.671855,29.424215
+theLittleMachine,NVIDIA GeForce RTX 4070 Laptop GPU,3eafeb0-dirty,27,8,20,195075.31,21.79429,43.708165,35287.59,120.482227,241.625536
+theLittleMachine,NVIDIA GeForce RTX 4070 Laptop GPU,3eafeb0-dirty,27,32,20,70626.37,60.197463,120.725227,28139.85,151.085664,303.00033
+theLittleMachine,NVIDIA GeForce RTX 4070 Laptop GPU,3eafeb0-dirty,27,128,20,39479.27,107.690139,215.971171,24478.59,173.68354,348.320077
