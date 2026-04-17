@@ -1,0 +1,4 @@
+d,solver_mode,ns_per_step,n_reps,qutip_version
+3,default,1031665.742,500,5.2.3
+9,default,1773532.55,100,5.2.3
+27,default,106627346.3,20,5.2.3

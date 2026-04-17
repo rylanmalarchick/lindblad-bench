@@ -40,5 +40,11 @@ paper/*.aux
 paper/*.log
 paper/*.out
 paper/*.blg
+paper/*.fdb_latexmk
+paper/*.fls
+paper/*.spl
 paper/arxiv_submission/
 paper/arxiv_submission.tar.gz
+paper/cpc_submission/
+paper/mainNotes.bib
+texput.log

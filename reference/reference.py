@@ -5,16 +5,19 @@ Two roles:
   1. Validation oracle: run alongside C library, compare to Hilbert-Schmidt norm < 1e-6
   2. Baseline benchmark: time QuTiP mesolve() for the same system/timestep as C
 
+The harness supports multiple solver modes. The released QuTiP version
+available on PyPI may not support every documented mode, so the script probes
+for support before attempting to benchmark those paths.
+
 Usage:
     # Validate C output (C must write rho_final to stdout as CSV):
     python reference/reference.py --validate --d 3
 
     # Benchmark QuTiP step timing for comparison:
-    python reference/reference.py --bench [--d 3] [--n-reps 1000]
-    # Output: benchmarks/qutip_results.csv
+    python reference/reference.py --bench --d 3 --n-reps 100 --solver-mode default
 
-    # Run all three d values:
-    python reference/reference.py --bench-all
+    # Run all three d values, probing all supported solver modes:
+    python reference/reference.py --bench-all --solver-mode all
 """
 
 import argparse
@@ -29,6 +32,9 @@ try:
 except ImportError:
     print("qutip and numpy required: pip install qutip numpy", file=sys.stderr)
     sys.exit(1)
+
+
+_MATRIX_FORM_SUPPORTED = None
 
 
 # ---------------------------------------------------------------------------
@@ -67,13 +73,70 @@ def ground_state(d: int) -> qt.Qobj:
     return qt.Qobj(data)
 
 
+def matrix_form_supported() -> bool:
+    global _MATRIX_FORM_SUPPORTED
+    if _MATRIX_FORM_SUPPORTED is not None:
+        return _MATRIX_FORM_SUPPORTED
+
+    H, cops = build_transmon_system(2)
+    rho0 = ground_state(2)
+    try:
+        qt.mesolve(
+            H,
+            rho0,
+            [0.0, 0.5],
+            c_ops=cops,
+            e_ops=[],
+            options={"matrix_form": True},
+        )
+    except KeyError:
+        _MATRIX_FORM_SUPPORTED = False
+    else:
+        _MATRIX_FORM_SUPPORTED = True
+    return _MATRIX_FORM_SUPPORTED
+
+
+def solver_options(solver_mode: str) -> dict:
+    if solver_mode == "default":
+        return {}
+    if solver_mode == "matrix_form":
+        if not matrix_form_supported():
+            raise RuntimeError(
+                f"Installed QuTiP {qt.__version__} does not support matrix_form"
+            )
+        return {"matrix_form": True}
+    raise ValueError(f"Unknown solver mode: {solver_mode}")
+
+
+def normalize_solver_modes(solver_mode: str) -> list[str]:
+    if solver_mode == "all":
+        modes = ["default"]
+        if matrix_form_supported():
+            modes.append("matrix_form")
+        return modes
+    return [solver_mode]
+
+
 # ---------------------------------------------------------------------------
 # Single-step propagation (validates against C lb_propagate_step)
 # ---------------------------------------------------------------------------
 
-def propagate_step_qutip(H, cops, rho0: qt.Qobj, dt: float) -> qt.Qobj:
+def propagate_step_qutip(
+    H,
+    cops,
+    rho0: qt.Qobj,
+    dt: float,
+    solver_mode: str = "default",
+) -> qt.Qobj:
     """Evolve rho0 by one step dt using mesolve."""
-    result = qt.mesolve(H, rho0, [0, dt], cops, [])
+    result = qt.mesolve(
+        H,
+        rho0,
+        [0.0, dt],
+        c_ops=cops,
+        e_ops=[],
+        options=solver_options(solver_mode),
+    )
     return result.states[-1]
 
 
@@ -81,7 +144,12 @@ def propagate_step_qutip(H, cops, rho0: qt.Qobj, dt: float) -> qt.Qobj:
 # Validation
 # ---------------------------------------------------------------------------
 
-def validate(d: int, dt: float = 0.5, t_end: float = 100.0) -> None:
+def validate(
+    d: int,
+    dt: float = 0.5,
+    t_end: float = 100.0,
+    solver_mode: str = "default",
+) -> None:
     """
     Evolve using QuTiP and compare to C output read from stdin.
     Prints Hilbert-Schmidt norm difference.
@@ -90,7 +158,14 @@ def validate(d: int, dt: float = 0.5, t_end: float = 100.0) -> None:
     rho0 = ground_state(d)
 
     tlist = np.arange(0, t_end + dt, dt)
-    result = qt.mesolve(H, rho0, tlist, cops, [])
+    result = qt.mesolve(
+        H,
+        rho0,
+        tlist,
+        c_ops=cops,
+        e_ops=[],
+        options=solver_options(solver_mode),
+    )
     rho_final_qutip = result.states[-1].full()
 
     print(f"QuTiP rho_final (d={d}, t={t_end}):")
@@ -111,7 +186,7 @@ def validate(d: int, dt: float = 0.5, t_end: float = 100.0) -> None:
 # Benchmark
 # ---------------------------------------------------------------------------
 
-def bench_single(d: int, n_reps: int) -> dict:
+def bench_single(d: int, n_reps: int, solver_mode: str = "default") -> dict:
     """Time QuTiP propagate_step and return ns_per_step."""
     H, cops = build_transmon_system(d)
     rho0 = ground_state(d)
@@ -119,29 +194,39 @@ def bench_single(d: int, n_reps: int) -> dict:
 
     # Warm-up
     for _ in range(5):
-        propagate_step_qutip(H, cops, rho0, dt)
+        propagate_step_qutip(H, cops, rho0, dt, solver_mode=solver_mode)
 
     t0 = time.perf_counter_ns()
     for _ in range(n_reps):
-        propagate_step_qutip(H, cops, rho0, dt)
+        propagate_step_qutip(H, cops, rho0, dt, solver_mode=solver_mode)
     t1 = time.perf_counter_ns()
 
     ns_per_step = (t1 - t0) / n_reps
-    return {"d": d, "ns_per_step": ns_per_step, "n_reps": n_reps}
+    return {
+        "d": d,
+        "solver_mode": solver_mode,
+        "ns_per_step": ns_per_step,
+        "n_reps": n_reps,
+        "qutip_version": qt.__version__,
+    }
 
 
-def bench_all(n_reps_map: dict, outpath: str) -> None:
+def bench_all(n_reps_map: dict, outpath: str, solver_mode: str) -> None:
     os.makedirs(os.path.dirname(outpath) or ".", exist_ok=True)
     results = []
-    for d, n_reps in n_reps_map.items():
-        print(f"Benchmarking d={d} ({n_reps} reps)...", flush=True)
-        r = bench_single(d, n_reps)
-        print(f"  d={d}: {r['ns_per_step']:.0f} ns/step "
-              f"({r['ns_per_step']/1e6:.2f} ms/step)")
-        results.append(r)
+    for mode in normalize_solver_modes(solver_mode):
+        for d, n_reps in n_reps_map.items():
+            print(f"Benchmarking d={d}, mode={mode} ({n_reps} reps)...", flush=True)
+            r = bench_single(d, n_reps, solver_mode=mode)
+            print(f"  d={d}, mode={mode}: {r['ns_per_step']:.0f} ns/step "
+                  f"({r['ns_per_step']/1e6:.2f} ms/step)")
+            results.append(r)
 
     with open(outpath, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["d", "ns_per_step", "n_reps"])
+        writer = csv.DictWriter(
+            f,
+            fieldnames=["d", "solver_mode", "ns_per_step", "n_reps", "qutip_version"],
+        )
         writer.writeheader()
         writer.writerows(results)
     print(f"\nResults written to {outpath}")
@@ -161,16 +246,28 @@ def main() -> None:
     parser.add_argument("--n-reps",    type=int, default=100, dest="n_reps")
     parser.add_argument("--dt",        type=float, default=0.5)
     parser.add_argument("--outdir",    default="benchmarks")
+    parser.add_argument(
+        "--solver-mode",
+        choices=["default", "matrix_form", "all"],
+        default="default",
+        help="QuTiP solver mode to benchmark or validate",
+    )
     args = parser.parse_args()
 
     if args.validate:
-        validate(args.d, dt=args.dt)
+        validate(args.d, dt=args.dt, solver_mode=args.solver_mode)
     elif args.bench:
-        r = bench_single(args.d, args.n_reps)
-        print(f"d={r['d']}: {r['ns_per_step']:.0f} ns/step")
+        if args.solver_mode == "all":
+            parser.error("--bench requires a single solver mode")
+        r = bench_single(args.d, args.n_reps, solver_mode=args.solver_mode)
+        print(f"d={r['d']}, mode={r['solver_mode']}: {r['ns_per_step']:.0f} ns/step")
     elif args.bench_all:
         n_reps_map = {3: 500, 9: 100, 27: 20}
-        bench_all(n_reps_map, os.path.join(args.outdir, "qutip_results.csv"))
+        bench_all(
+            n_reps_map,
+            os.path.join(args.outdir, "qutip_results.csv"),
+            args.solver_mode,
+        )
     else:
         parser.print_help()
 

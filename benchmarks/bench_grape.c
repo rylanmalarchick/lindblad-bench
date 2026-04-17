@@ -26,46 +26,54 @@ static long long ns_diff(struct timespec a, struct timespec b)
          + (b.tv_nsec - a.tv_nsec);
 }
 
-/**
- * Build a Lindbladian with a drive-perturbed Hamiltonian.
- * H(segment) = H0 + Omega * sigma_x_truncated
- * where Omega varies per segment (simulating GRAPE pulse amplitudes).
- */
-static int build_driven_lindbladian(size_t d, double omega, double gamma,
-                                    lb_matrix_t *L_out)
+static int build_driven_problem(size_t d,
+                                double gamma,
+                                lb_system_t *diss_sys,
+                                lb_matrix_t *H0,
+                                lb_matrix_t *Hdrive)
 {
-    lb_system_t sys;
-    lb_system_init(&sys, d);
-    lb_matrix_alloc(&sys.H, d);
+    lb_system_init(diss_sys, d);
+    if (lb_matrix_alloc(H0, d) != 0) return -1;
+    if (lb_matrix_alloc(Hdrive, d) != 0) {
+        lb_matrix_free(H0);
+        return -1;
+    }
 
-    /* H = diag(0, 1, ...) + omega * (|0><1| + |1><0|) */
+    /* H0 = diag(0, 1, ...) */
     for (size_t n = 0; n < d; n++)
-        sys.H.data[n * d + n] = (double)n + 0.0*I;
+        H0->data[n * d + n] = (double)n + 0.0*I;
     if (d >= 2) {
-        sys.H.data[0 * d + 1] += omega + 0.0*I;
-        sys.H.data[1 * d + 0] += omega + 0.0*I;
+        /* Truncated sigma_x-like drive term */
+        Hdrive->data[0 * d + 1] = 1.0 + 0.0*I;
+        Hdrive->data[1 * d + 0] = 1.0 + 0.0*I;
     }
 
     /* Amplitude damping */
     if (d >= 2) {
         lb_matrix_t L1 = {NULL, d};
-        lb_matrix_alloc(&L1, d);
+        if (lb_matrix_alloc(&L1, d) != 0) {
+            lb_matrix_free(H0);
+            lb_matrix_free(Hdrive);
+            return -1;
+        }
         L1.data[0 * d + 1] = sqrt(gamma) + 0.0*I;
-        lb_system_add_cop(&sys, &L1);
+        if (lb_system_add_cop(diss_sys, &L1) != 0) {
+            lb_matrix_free(&L1);
+            lb_matrix_free(H0);
+            lb_matrix_free(Hdrive);
+            lb_system_free(diss_sys);
+            return -1;
+        }
         lb_matrix_free(&L1);
     }
 
-    if (lb_build_lindbladian(&sys, L_out) != 0) {
-        lb_system_free(&sys);
-        return -1;
-    }
-    lb_system_free(&sys);
     return 0;
 }
 
 static void run_bench(size_t d, int n_segments, int steps_per_seg, int n_trials)
 {
     size_t d2 = d * d;
+    size_t n4 = d2 * d2;
     double gamma = 1.0 / 50.0;
     double dt = 0.5; /* ns per step */
 
@@ -82,17 +90,59 @@ static void run_bench(size_t d, int n_segments, int steps_per_seg, int n_trials)
     for (int s = 0; s < n_segments; s++)
         omegas[s] = 0.1 * ((double)rand() / RAND_MAX - 0.5);
 
-    /* ---- Phase 1: Build all propagators ---- */
+    /* ---- One-time setup: static and drive superoperators ---- */
     lb_propagator_t *props = calloc(n_segments, sizeof(lb_propagator_t));
-    lb_matrix_t L = {NULL, d2};
-    lb_matrix_alloc(&L, d2);
+    lb_system_t diss_sys;
+    lb_matrix_t H0 = {0};
+    lb_matrix_t Hdrive = {0};
+    lb_matrix_t Lcoh0 = {0};
+    lb_matrix_t Ldrive = {0};
+    lb_matrix_t Ldiss = {0};
+    lb_matrix_t Lbase = {0};
+    lb_matrix_t L = {0};
+    lb_expm_workspace_t ws = {0};
 
     struct timespec t0, t1;
     clock_gettime(CLOCK_MONOTONIC, &t0);
 
+    if (build_driven_problem(d, gamma, &diss_sys, &H0, &Hdrive) != 0) {
+        fprintf(stderr, "failed to build driven problem\n");
+        exit(1);
+    }
+    if (lb_matrix_alloc(&Lcoh0, d2) != 0 ||
+        lb_matrix_alloc(&Ldrive, d2) != 0 ||
+        lb_matrix_alloc(&Ldiss, d2) != 0 ||
+        lb_matrix_alloc(&Lbase, d2) != 0 ||
+        lb_matrix_alloc(&L, d2) != 0 ||
+        lb_expm_workspace_alloc(&ws, d2) != 0) {
+        fprintf(stderr, "failed to allocate GRAPE setup buffers\n");
+        exit(1);
+    }
+
+    if (lb_build_coherent_superop(&H0, &Lcoh0) != 0 ||
+        lb_build_coherent_superop(&Hdrive, &Ldrive) != 0 ||
+        lb_build_dissipator_superop(&diss_sys, &Ldiss) != 0) {
+        fprintf(stderr, "failed to build reusable superoperators\n");
+        exit(1);
+    }
+
+    for (size_t i = 0; i < n4; i++) {
+        Lbase.data[i] = Lcoh0.data[i] + Ldiss.data[i];
+    }
+
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    double ms_setup = (double)ns_diff(t0, t1) / 1e6;
+
+    /* ---- Phase 1: Build all segment propagators ---- */
+    clock_gettime(CLOCK_MONOTONIC, &t0);
     for (int s = 0; s < n_segments; s++) {
-        build_driven_lindbladian(d, omegas[s], gamma, &L);
-        lb_build_propagator(&L, dt, &props[s]);
+        for (size_t i = 0; i < n4; i++) {
+            L.data[i] = Lbase.data[i] + omegas[s] * Ldrive.data[i];
+        }
+        if (lb_build_propagator_ws(&L, dt, &props[s], &ws) != 0) {
+            fprintf(stderr, "failed to build propagator %d\n", s);
+            exit(1);
+        }
     }
 
     clock_gettime(CLOCK_MONOTONIC, &t1);
@@ -139,6 +189,7 @@ static void run_bench(size_t d, int n_segments, int steps_per_seg, int n_trials)
     double ns_per_step = (double)ns_diff(t0, t1) / (double)n_trials / (double)total_steps;
 
     /* ---- Report ---- */
+    printf("  [setup] invariant superops : %.3f ms\n", ms_setup);
     printf("  [build] all propagators : %.3f ms (%.3f ms/segment)\n",
            ms_build_all, ms_build_per);
     printf("  [chain] ms/trajectory   : %.3f ms (%d total steps)\n",
@@ -154,10 +205,18 @@ static void run_bench(size_t d, int n_segments, int steps_per_seg, int n_trials)
         lb_propagator_free(&props[s]);
     free(props);
     free(omegas);
+    lb_expm_workspace_free(&ws);
+    lb_matrix_free(&H0);
+    lb_matrix_free(&Hdrive);
+    lb_matrix_free(&Lcoh0);
+    lb_matrix_free(&Ldrive);
+    lb_matrix_free(&Ldiss);
+    lb_matrix_free(&Lbase);
     lb_matrix_free(&L);
     lb_matrix_free(&rho_cur);
     lb_matrix_free(&rho_next);
     lb_matrix_free(&rho0);
+    lb_system_free(&diss_sys);
 }
 
 int main(void)

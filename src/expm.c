@@ -148,101 +148,119 @@ int mat_solve(lb_matrix_t *A, lb_matrix_t *B)
     return 0;
 }
 
+int lb_expm_workspace_alloc(lb_expm_workspace_t *ws, size_t dim)
+{
+    lb_matrix_t *bufs[] = {
+        &ws->As, &ws->tmp, &ws->A2, &ws->A4,
+        &ws->A6, &ws->U, &ws->V, &ws->W
+    };
+
+    memset(ws, 0, sizeof(*ws));
+    ws->dim = dim;
+
+    for (size_t i = 0; i < sizeof(bufs) / sizeof(bufs[0]); i++) {
+        if (lb_matrix_alloc(bufs[i], dim) != 0) {
+            lb_expm_workspace_free(ws);
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+void lb_expm_workspace_free(lb_expm_workspace_t *ws)
+{
+    lb_matrix_free(&ws->As);
+    lb_matrix_free(&ws->tmp);
+    lb_matrix_free(&ws->A2);
+    lb_matrix_free(&ws->A4);
+    lb_matrix_free(&ws->A6);
+    lb_matrix_free(&ws->U);
+    lb_matrix_free(&ws->V);
+    lb_matrix_free(&ws->W);
+    ws->dim = 0;
+}
+
 /* --------------------------------------------------------------------------
  * Padé [13/13] numerator and denominator
  *
  * Given A, compute:
  *   U = A * (b_13 A^12 + b_11 A^10 + ... + b_1 I)   (odd Padé terms)
  *   V =     (b_12 A^12 + b_10 A^10 + ... + b_0 I)   (even Padé terms)
- *   expm(A) ≈ (V + U)^{-1} (V - U)
+ *   expm(A) ≈ (V - U)^{-1} (V + U)
  *
  * See Higham 2005, Algorithm 2.3.
  * -------------------------------------------------------------------------- */
-static int pade13(const lb_matrix_t *A, lb_matrix_t *out)
+static int pade13_ws(const lb_matrix_t *A, lb_matrix_t *out, lb_expm_workspace_t *ws)
 {
     size_t n = A->dim;
+    lb_matrix_t *A2 = &ws->A2;
+    lb_matrix_t *A4 = &ws->A4;
+    lb_matrix_t *A6 = &ws->A6;
+    lb_matrix_t *U  = &ws->U;
+    lb_matrix_t *V  = &ws->V;
+    lb_matrix_t *W  = &ws->W;
 
-    /* We need: A2, A4, A6, U, V, tmp */
-    lb_matrix_t A2 = {NULL, n};
-    lb_matrix_t A4 = {NULL, n};
-    lb_matrix_t A6 = {NULL, n};
-    lb_matrix_t U  = {NULL, n};
-    lb_matrix_t V  = {NULL, n};
-    lb_matrix_t W  = {NULL, n}; /* scratch */
-    lb_matrix_t *bufs[] = {&A2, &A4, &A6, &U, &V, &W};
-    int allocated = 0;
-
-    for (int i = 0; i < 6; i++) {
-        if (lb_matrix_alloc(bufs[i], n) != 0) goto cleanup;
-        allocated++;
-    }
+    if (ws->dim != n || out->dim != n) return -1;
 
     /* A2 = A*A, A4 = A2*A2, A6 = A4*A2 */
-    mat_mul(A, A, &A2);
-    mat_mul(&A2, &A2, &A4);
-    mat_mul(&A4, &A2, &A6);
+    mat_mul(A, A, A2);
+    mat_mul(A2, A2, A4);
+    mat_mul(A4, A2, A6);
 
-    /* V = b12*A6 + b10*A4 + b8*A2 (even, high) — stored in W first */
-    /* Then multiply by A6 to get b12*A^12 + b10*A^10 + b8*A^8 */
-
-    /* Build V = b[12]*A6 + b[10]*A4 + b[8]*A2 + b[6]*I (using W as scratch) */
-    mat_identity(&V);
+    /* Build V = b[12]*A6 + b[10]*A4 + b[8]*A2 + b[6]*I */
     for (size_t i = 0; i < n * n; i++) {
-        V.data[i] = PADE_COEFS[12] * A6.data[i]
-                  + PADE_COEFS[10] * A4.data[i]
-                  + PADE_COEFS[8]  * A2.data[i];
+        V->data[i] = PADE_COEFS[12] * A6->data[i]
+                   + PADE_COEFS[10] * A4->data[i]
+                   + PADE_COEFS[8]  * A2->data[i];
     }
     /* V = A6 * V + b6*A6 + b4*A4 + b2*A2 + b0*I */
-    mat_mul(&A6, &V, &W);
-    mat_identity(&V);
+    mat_mul(A6, V, W);
     for (size_t i = 0; i < n * n; i++) {
-        V.data[i] = W.data[i]
-                  + PADE_COEFS[6] * A6.data[i]
-                  + PADE_COEFS[4] * A4.data[i]
-                  + PADE_COEFS[2] * A2.data[i];
+        V->data[i] = W->data[i]
+                   + PADE_COEFS[6] * A6->data[i]
+                   + PADE_COEFS[4] * A4->data[i]
+                   + PADE_COEFS[2] * A2->data[i];
     }
-    /* V += b0*I */
-    for (size_t i = 0; i < n; i++) V.data[i * n + i] += PADE_COEFS[0];
+    for (size_t i = 0; i < n; i++) {
+        V->data[i * n + i] += PADE_COEFS[0];
+    }
 
-    /* Build U = b[13]*A6 + b[11]*A4 + b[9]*A2 (odd, high) */
+    /* Build U = b[13]*A6 + b[11]*A4 + b[9]*A2, then multiply by A */
     for (size_t i = 0; i < n * n; i++) {
-        W.data[i] = PADE_COEFS[13] * A6.data[i]
-                  + PADE_COEFS[11] * A4.data[i]
-                  + PADE_COEFS[9]  * A2.data[i];
+        W->data[i] = PADE_COEFS[13] * A6->data[i]
+                   + PADE_COEFS[11] * A4->data[i]
+                   + PADE_COEFS[9]  * A2->data[i];
     }
-    /* U = A6 * W + b7*A6 + b5*A4 + b3*A2 + b1*I */
-    mat_mul(&A6, &W, &U);
+    mat_mul(A6, W, U);
     for (size_t i = 0; i < n * n; i++) {
-        U.data[i] += PADE_COEFS[7] * A6.data[i]
-                   + PADE_COEFS[5] * A4.data[i]
-                   + PADE_COEFS[3] * A2.data[i];
+        U->data[i] += PADE_COEFS[7] * A6->data[i]
+                    + PADE_COEFS[5] * A4->data[i]
+                    + PADE_COEFS[3] * A2->data[i];
     }
-    /* U += b1*I */
-    for (size_t i = 0; i < n; i++) U.data[i * n + i] += PADE_COEFS[1];
-    /* U = A * U */
-    mat_mul(A, &U, &W);
-    memcpy(U.data, W.data, n * n * sizeof(double complex));
+    for (size_t i = 0; i < n; i++) {
+        U->data[i * n + i] += PADE_COEFS[1];
+    }
+    mat_mul(A, U, W);
+    memcpy(U->data, W->data, n * n * sizeof(double complex));
 
-    /* expm(A) = (V - U)^{-1} (V + U)
-     * Store numerator (V+U) in out, denominator (V-U) in W, then solve. */
     for (size_t i = 0; i < n * n; i++) {
-        out->data[i] = V.data[i] + U.data[i]; /* numerator  */
-        W.data[i]   = V.data[i] - U.data[i]; /* denominator */
+        out->data[i] = V->data[i] + U->data[i];
+        W->data[i]   = V->data[i] - U->data[i];
     }
-    /* Solve W * out = out  ->  out = W^{-1} * (V+U) */
-    if (mat_solve(&W, out) != 0) { allocated = -1; goto cleanup; }
 
-cleanup:
-    for (int i = 0; i < 6; i++) lb_matrix_free(bufs[i]);
-    return (allocated < 0) ? -1 : 0;
+    return mat_solve(W, out);
 }
 
 /* --------------------------------------------------------------------------
  * Public: lb_expm
  * -------------------------------------------------------------------------- */
-int lb_expm(const lb_matrix_t *A, lb_matrix_t *out)
+int lb_expm_ws(const lb_matrix_t *A, lb_matrix_t *out, lb_expm_workspace_t *ws)
 {
     size_t n = A->dim;
+
+    if (!A || !out || !ws || out->dim != n || ws->dim != n) return -1;
+
     double norm = mat_one_norm(A);
 
     /* Determine number of squarings s such that ||A/2^s||_1 <= theta_13 */
@@ -252,28 +270,32 @@ int lb_expm(const lb_matrix_t *A, lb_matrix_t *out)
     }
 
     /* Scale: As = A / 2^s */
-    lb_matrix_t As = {NULL, n};
-    if (lb_matrix_alloc(&As, n) != 0) return -1;
-    double scale = 1.0 / (double)(1 << s);
+    double scale = ldexp(1.0, -s);
     for (size_t i = 0; i < n * n; i++) {
-        As.data[i] = A->data[i] * scale;
+        ws->As.data[i] = A->data[i] * scale;
     }
 
     /* Compute Padé approximant of expm(As) */
-    if (pade13(&As, out) != 0) {
-        lb_matrix_free(&As);
-        return -1;
-    }
-    lb_matrix_free(&As);
+    if (pade13_ws(&ws->As, out, ws) != 0) return -1;
 
     /* Squaring phase: out = out^(2^s) */
-    lb_matrix_t tmp = {NULL, n};
-    if (lb_matrix_alloc(&tmp, n) != 0) return -1;
     for (int i = 0; i < s; i++) {
-        mat_mul(out, out, &tmp);
-        memcpy(out->data, tmp.data, n * n * sizeof(double complex));
+        mat_mul(out, out, &ws->tmp);
+        memcpy(out->data, ws->tmp.data, n * n * sizeof(double complex));
     }
-    lb_matrix_free(&tmp);
 
     return 0;
+}
+
+int lb_expm(const lb_matrix_t *A, lb_matrix_t *out)
+{
+    lb_expm_workspace_t ws = {0};
+    int ret;
+
+    if (!A || !out || A->dim != out->dim) return -1;
+    if (lb_expm_workspace_alloc(&ws, A->dim) != 0) return -1;
+
+    ret = lb_expm_ws(A, out, &ws);
+    lb_expm_workspace_free(&ws);
+    return ret;
 }

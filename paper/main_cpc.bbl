@@ -1,0 +1,91 @@
+\begin{thebibliography}{10}
+\expandafter\ifx\csname url\endcsname\relax
+  \def\url#1{\texttt{#1}}\fi
+\expandafter\ifx\csname urlprefix\endcsname\relax\def\urlprefix{URL }\fi
+\expandafter\ifx\csname href\endcsname\relax
+  \def\href#1#2{#2} \def\path#1{#1}\fi
+
+\bibitem{Lindblad1976}
+G.~Lindblad, On the generators of quantum dynamical semigroups, Communications
+  in Mathematical Physics 48~(2) (1976) 119--130.
+\newblock \href {https://doi.org/10.1007/BF01608499}
+  {\path{doi:10.1007/BF01608499}}.
+
+\bibitem{Gorini1976}
+V.~Gorini, A.~Kossakowski, E.~C.~G. Sudarshan, Completely positive dynamical
+  semigroups of $n$-level systems, Journal of Mathematical Physics 17~(5)
+  (1976) 821--825.
+\newblock \href {https://doi.org/10.1063/1.522979}
+  {\path{doi:10.1063/1.522979}}.
+
+\bibitem{Koch2007}
+J.~Koch, T.~M. Yu, J.~Gambetta, A.~A. Houck, D.~I. Schuster, J.~Majer,
+  A.~Blais, M.~H. Devoret, S.~M. Girvin, R.~J. Schoelkopf, Charge-insensitive
+  qubit design derived from the {Cooper} pair box, Physical Review A 76~(4)
+  (2007) 042319.
+\newblock \href {https://doi.org/10.1103/PhysRevA.76.042319}
+  {\path{doi:10.1103/PhysRevA.76.042319}}.
+
+\bibitem{Khaneja2005}
+N.~Khaneja, T.~Reiss, C.~Kehlet, T.~Schulte-Herbr{\"u}ggen, S.~J. Glaser,
+  Optimal control of coupled spin dynamics: design of {NMR} pulse sequences by
+  gradient ascent algorithms, Journal of Magnetic Resonance 172~(2) (2005)
+  296--305.
+\newblock \href {https://doi.org/10.1016/j.jmr.2004.11.004}
+  {\path{doi:10.1016/j.jmr.2004.11.004}}.
+
+\bibitem{Malarchick2025QPO}
+R.~Malarchick, When does numerical pulse optimization actually help? {Error}
+  budgets, robustness tradeoffs, and calibration guidance for transmon
+  single-qubit gates (2025).
+\newblock \href {http://arxiv.org/abs/2511.12799} {\path{arXiv:2511.12799}},
+  \href {https://doi.org/10.48550/arXiv.2511.12799}
+  {\path{doi:10.48550/arXiv.2511.12799}}.
+
+\bibitem{Johansson2012}
+J.~R. Johansson, P.~D. Nation, F.~Nori, {QuTiP}: An open-source {Python}
+  framework for the dynamics of open quantum systems, Computer Physics
+  Communications 183~(8) (2012) 1760--1772.
+\newblock \href {https://doi.org/10.1016/j.cpc.2012.02.021}
+  {\path{doi:10.1016/j.cpc.2012.02.021}}.
+
+\bibitem{Johansson2013}
+J.~R. Johansson, P.~D. Nation, F.~Nori, {QuTiP} 2: A {Python} framework for the
+  dynamics of open quantum systems, Computer Physics Communications 184~(4)
+  (2013) 1234--1240.
+\newblock \href {https://doi.org/10.1016/j.cpc.2012.11.019}
+  {\path{doi:10.1016/j.cpc.2012.11.019}}.
+
+\bibitem{Guilmin2024}
+P.~Guilmin, R.~Gautier, A.~Le~Bris, E.~Music, D.~E. Volpe, dynamiqs: an
+  open-source {Python} library for {GPU}-accelerated differentiable simulation
+  of quantum systems (2024).
+\newblock \href {http://arxiv.org/abs/2411.17166} {\path{arXiv:2411.17166}}.
+
+\bibitem{Williams2009}
+S.~Williams, A.~Waterman, D.~Patterson, Roofline: An insightful visual
+  performance model for multicore architectures, Communications of the ACM
+  52~(4) (2009) 65--76.
+\newblock \href {https://doi.org/10.1145/1498765.1498785}
+  {\path{doi:10.1145/1498765.1498785}}.
+
+\bibitem{AgnerFog}
+A.~Fog, Optimizing Software in {C++}: An Optimization Guide for Windows,
+  {Linux}, and {Mac} Platforms, Self-published, 2024, available at
+  \url{https://www.agner.org/optimize/}.
+
+\bibitem{IntelIntrinsics}
+{Intel Corporation}, Intel intrinsics guide,
+  \url{https://www.intel.com/content/www/us/en/docs/intrinsics-guide/} (2024).
+
+\bibitem{Higham2005}
+N.~J. Higham, The scaling and squaring method for the matrix exponential
+  revisited, SIAM Journal on Matrix Analysis and Applications 26~(4) (2005)
+  1179--1193.
+\newblock \href {https://doi.org/10.1137/04061101X}
+  {\path{doi:10.1137/04061101X}}.
+
+\bibitem{Godbolt}
+M.~Godbolt, Compiler explorer, \url{https://godbolt.org} (2024).
+
+\end{thebibliography}
