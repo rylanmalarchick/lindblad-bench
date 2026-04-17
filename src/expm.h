@@ -44,4 +44,10 @@ double mat_one_norm(const lb_matrix_t *A);
  */
 int mat_solve(lb_matrix_t *A, lb_matrix_t *B);
 
+/**
+ * Compute out = expm(A) using caller-owned reusable scratch space.
+ * ws must have been allocated for A->dim by lb_expm_workspace_alloc().
+ */
+int lb_expm_ws(const lb_matrix_t *A, lb_matrix_t *out, lb_expm_workspace_t *ws);
+
 #endif /* EXPM_H */

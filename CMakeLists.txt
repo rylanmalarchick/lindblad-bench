@@ -29,6 +29,20 @@ else()
     set(CMAKE_C_FLAGS "${BASE_FLAGS} ${OPT_FLAGS}")
 endif()
 
+option(ENABLE_OPENMP "Enable OpenMP for batch-parallel APIs and benchmarks" OFF)
+if(ENABLE_OPENMP)
+    find_package(OpenMP REQUIRED)
+endif()
+
+option(ENABLE_CUDA "Enable CUDA validation targets and benchmarks" OFF)
+if(ENABLE_CUDA)
+    enable_language(CUDA)
+    find_package(CUDAToolkit REQUIRED)
+    if(NOT CMAKE_CUDA_ARCHITECTURES)
+        set(CMAKE_CUDA_ARCHITECTURES 61 89)
+    endif()
+endif()
+
 # ---------------------------------------------------------------------------
 # Library: lindblad_bench (static)
 # ---------------------------------------------------------------------------
@@ -44,10 +58,34 @@ target_include_directories(lindblad_bench PUBLIC
     ${CMAKE_SOURCE_DIR}/src
 )
 
+if(ENABLE_OPENMP)
+    target_link_libraries(lindblad_bench PUBLIC OpenMP::OpenMP_C)
+endif()
+
+if(ENABLE_CUDA)
+    add_library(lindblad_cuda STATIC
+        cuda/propagate_batch_wrapper.c
+        cuda/propagate_batch_kernel.cu
+    )
+    target_include_directories(lindblad_cuda PUBLIC
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/cuda
+    )
+    target_link_libraries(lindblad_cuda PUBLIC
+        lindblad_bench
+        CUDA::cudart
+        m
+    )
+    set_target_properties(lindblad_cuda PROPERTIES
+        CUDA_STANDARD 17
+        CUDA_STANDARD_REQUIRED ON
+    )
+endif()
+
 # ---------------------------------------------------------------------------
 # Benchmarks
 # ---------------------------------------------------------------------------
-foreach(bench propagate evolve expm grape)
+foreach(bench propagate evolve expm grape batch)
     add_executable(bench_${bench} benchmarks/bench_${bench}.c)
     target_link_libraries(bench_${bench} lindblad_bench m)
     target_include_directories(bench_${bench} PRIVATE
@@ -55,12 +93,21 @@ foreach(bench propagate evolve expm grape)
     )
 endforeach()
 
+if(ENABLE_CUDA)
+    add_executable(bench_cuda benchmarks/bench_cuda.c)
+    target_link_libraries(bench_cuda lindblad_cuda)
+    target_include_directories(bench_cuda PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/cuda
+    )
+endif()
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 enable_testing()
 
-foreach(test expm propagate evolve)
+foreach(test expm propagate evolve batch grape_build)
     add_executable(test_${test} tests/test_${test}.c)
     target_link_libraries(test_${test} lindblad_bench m)
     target_include_directories(test_${test} PRIVATE
@@ -68,3 +115,12 @@ foreach(test expm propagate evolve)
     )
     add_test(NAME ${test} COMMAND test_${test})
 endforeach()
+
+if(ENABLE_CUDA)
+    add_executable(test_cuda tests/test_cuda.c)
+    target_link_libraries(test_cuda lindblad_cuda)
+    target_include_directories(test_cuda PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+    )
+    add_test(NAME cuda COMMAND test_cuda)
+endif()

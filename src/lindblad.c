@@ -168,13 +168,44 @@ static void mat_dag(const lb_matrix_t *A, lb_matrix_t *out)
     }
 }
 
-/* --------------------------------------------------------------------------
- * lb_build_lindbladian
- *
- * All matrices declared at top so goto-based cleanup is well-defined.
- * lb_matrix_free() is safe to call on zero-initialized structs (data==NULL).
- * -------------------------------------------------------------------------- */
-int lb_build_lindbladian(const lb_system_t *sys, lb_matrix_t *out)
+int lb_build_coherent_superop(const lb_matrix_t *H, lb_matrix_t *out)
+{
+    size_t d  = H->dim;
+    size_t d2 = d * d;
+
+    if (out->dim != d2) return -1;
+    memset(out->data, 0, d2 * d2 * sizeof(double complex));
+
+    lb_matrix_t Id    = {0};
+    lb_matrix_t Hc    = {0};
+    lb_matrix_t HkId  = {0};
+    lb_matrix_t IdkHc = {0};
+    int ret = 0;
+
+    if (lb_matrix_alloc(&Id,    d)  != 0) { ret = -1; goto done; }
+    if (lb_matrix_alloc(&Hc,    d)  != 0) { ret = -1; goto done; }
+    if (lb_matrix_alloc(&HkId,  d2) != 0) { ret = -1; goto done; }
+    if (lb_matrix_alloc(&IdkHc, d2) != 0) { ret = -1; goto done; }
+
+    mat_identity(&Id);
+    mat_conj(H, &Hc);
+
+    /* Coherent part: -i(H⊗Id - Id⊗H*) */
+    kron(H,      &Id, &HkId);
+    kron(&Id,     &Hc, &IdkHc);
+    for (size_t i = 0; i < d2 * d2; i++) {
+        out->data[i] += -I * (HkId.data[i] - IdkHc.data[i]);
+    }
+
+done:
+    lb_matrix_free(&Id);
+    lb_matrix_free(&Hc);
+    lb_matrix_free(&HkId);
+    lb_matrix_free(&IdkHc);
+    return ret;
+}
+
+int lb_build_dissipator_superop(const lb_system_t *sys, lb_matrix_t *out)
 {
     size_t d  = sys->d;
     size_t d2 = d * d;
@@ -182,11 +213,8 @@ int lb_build_lindbladian(const lb_system_t *sys, lb_matrix_t *out)
     if (out->dim != d2) return -1;
     memset(out->data, 0, d2 * d2 * sizeof(double complex));
 
-    /* Declare all temporaries at top — zero-initialized for safe goto cleanup */
     lb_matrix_t Id    = {0};
     lb_matrix_t Hc    = {0};
-    lb_matrix_t HkId  = {0};
-    lb_matrix_t IdkHc = {0};
     lb_matrix_t Ldag  = {0};
     lb_matrix_t LdagL = {0};
     lb_matrix_t Lc    = {0};
@@ -197,8 +225,6 @@ int lb_build_lindbladian(const lb_system_t *sys, lb_matrix_t *out)
 
     if (lb_matrix_alloc(&Id,    d)  != 0) { ret = -1; goto done; }
     if (lb_matrix_alloc(&Hc,    d)  != 0) { ret = -1; goto done; }
-    if (lb_matrix_alloc(&HkId,  d2) != 0) { ret = -1; goto done; }
-    if (lb_matrix_alloc(&IdkHc, d2) != 0) { ret = -1; goto done; }
     if (lb_matrix_alloc(&Ldag,  d)  != 0) { ret = -1; goto done; }
     if (lb_matrix_alloc(&LdagL, d)  != 0) { ret = -1; goto done; }
     if (lb_matrix_alloc(&Lc,    d)  != 0) { ret = -1; goto done; }
@@ -207,17 +233,7 @@ int lb_build_lindbladian(const lb_system_t *sys, lb_matrix_t *out)
     if (lb_matrix_alloc(&IkLdL, d2) != 0) { ret = -1; goto done; }
 
     mat_identity(&Id);
-    mat_conj(&sys->H, &Hc);
 
-    /* Coherent part: -i(H⊗Id - Id⊗H*) */
-    kron(&sys->H, &Id, &HkId);
-    kron(&Id,     &Hc, &IdkHc);
-    for (size_t i = 0; i < d2 * d2; i++) {
-        /* Note: capital I here is the imaginary unit from <complex.h>, not our matrix */
-        out->data[i] += -I * (HkId.data[i] - IdkHc.data[i]);
-    }
-
-    /* Dissipative part: Σ_k [ L_k⊗L_k* - ½(L_k†L_k⊗Id) - ½(Id⊗L_k^T L_k*) ] */
     for (size_t k = 0; k < sys->n_cops; k++) {
         const lb_matrix_t *Lop = &sys->cops[k];
 
@@ -244,14 +260,39 @@ int lb_build_lindbladian(const lb_system_t *sys, lb_matrix_t *out)
 done:
     lb_matrix_free(&Id);
     lb_matrix_free(&Hc);
-    lb_matrix_free(&HkId);
-    lb_matrix_free(&IdkHc);
     lb_matrix_free(&Ldag);
     lb_matrix_free(&LdagL);
     lb_matrix_free(&Lc);
     lb_matrix_free(&LkLc);
     lb_matrix_free(&LdLkI);
     lb_matrix_free(&IkLdL);
+    return ret;
+}
+
+/* --------------------------------------------------------------------------
+ * lb_build_lindbladian
+ * -------------------------------------------------------------------------- */
+int lb_build_lindbladian(const lb_system_t *sys, lb_matrix_t *out)
+{
+    size_t d2 = sys->d * sys->d;
+    lb_matrix_t Ldiss = {0};
+    int ret = 0;
+
+    if (out->dim != d2) return -1;
+
+    if (lb_build_coherent_superop(&sys->H, out) != 0) return -1;
+    if (lb_matrix_alloc(&Ldiss, d2) != 0) return -1;
+    if (lb_build_dissipator_superop(sys, &Ldiss) != 0) {
+        ret = -1;
+        goto done;
+    }
+
+    for (size_t i = 0; i < d2 * d2; i++) {
+        out->data[i] += Ldiss.data[i];
+    }
+
+done:
+    lb_matrix_free(&Ldiss);
     return ret;
 }
 

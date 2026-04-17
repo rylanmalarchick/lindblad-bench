@@ -66,6 +66,44 @@ done:
     return ret;
 }
 
+int lb_evolve_prop_batch(const lb_propagator_t *prop,
+                         const lb_matrix_t *rho0_batch,
+                         size_t batch_size,
+                         size_t n_steps,
+                         lb_matrix_t *rho_out_batch)
+{
+    if (!prop || (!rho0_batch && batch_size > 0) || (!rho_out_batch && batch_size > 0)) {
+        return -1;
+    }
+
+#ifdef _OPENMP
+    int ret = 0;
+    #pragma omp parallel for if (batch_size > 1) schedule(static) reduction(|:ret)
+    for (ptrdiff_t b = 0; b < (ptrdiff_t)batch_size; b++) {
+        if (rho0_batch[b].dim != prop->d || rho_out_batch[b].dim != prop->d) {
+            ret = 1;
+            continue;
+        }
+        if (lb_evolve_prop(prop, &rho0_batch[b], n_steps, &rho_out_batch[b], NULL) != 0) {
+            ret = 1;
+        }
+    }
+
+    return ret ? -1 : 0;
+#else
+    for (size_t b = 0; b < batch_size; b++) {
+        if (rho0_batch[b].dim != prop->d || rho_out_batch[b].dim != prop->d) {
+            return -1;
+        }
+        if (lb_evolve_prop(prop, &rho0_batch[b], n_steps, &rho_out_batch[b], NULL) != 0) {
+            return -1;
+        }
+    }
+
+    return 0;
+#endif
+}
+
 /* --------------------------------------------------------------------------
  * lb_evolve — convenience wrapper that builds L and P internally
  * -------------------------------------------------------------------------- */
