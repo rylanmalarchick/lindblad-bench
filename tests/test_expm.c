@@ -4,8 +4,10 @@
  * Tests:
  *   1. expm(0) = I
  *   2. expm(A) * expm(-A) = I  (inverse property)
- *   3. det(expm(A)) = exp(tr(A))  (Jacobi's formula, real diagonal case)
- *   4. Known analytic result: expm(i*pi*sigma_x/2) = i*sigma_x (up to phase)
+ *   3. det(expm(A)) = exp(tr(A))  (Jacobi's formula)
+ *   4. Known analytic result: expm(i*theta*sigma_x) = cos(theta) I + i sin(theta) sigma_x
+ *   5. Same analytic result at a larger norm (||A||_1 = 3): a forward-accuracy
+ *      regression guard for the scaling-and-squaring threshold.
  */
 
 #include "lindblad_bench.h"
@@ -15,7 +17,11 @@
 #include <complex.h>
 #include <string.h>
 
-#define TOL     1e-6
+/* Deterministic matrix-exponential outputs, pinned tight. The Padé[13]
+ * scaling-and-squaring implementation reaches ~1e-9 forward accuracy for small
+ * dense matrices (and ~1e-13 for the larger superoperators); 1e-8 sits just
+ * above that floor and still catches the pre-fix under-scaling (~1e-6). */
+#define TOL     1e-8
 #define PASS "\033[32mPASS\033[0m"
 #define FAIL "\033[31mFAIL\033[0m"
 
@@ -130,6 +136,65 @@ static int test_pauli_x(void)
     return check("expm(i*pi/4*sigma_x) analytic (2x2)", fail == 0);
 }
 
+static int test_jacobi_det(void)
+{
+    puts("test_expm_jacobi:");
+    /* Jacobi's formula: det(expm(A)) = exp(tr(A)) for any A.
+     * Use a non-normal 2x2 so the identity is not trivially diagonal. */
+    size_t n = 2;
+    lb_matrix_t A   = {NULL, n};
+    lb_matrix_t out = {NULL, n};
+    lb_matrix_alloc(&A, n);
+    lb_matrix_alloc(&out, n);
+
+    A.data[0] = 0.3 + 0.0*I;  A.data[1] =  0.1 + 0.0*I;
+    A.data[2] = -0.2 + 0.0*I; A.data[3] =  0.4 + 0.0*I;
+    double complex tr = A.data[0] + A.data[3];
+
+    lb_expm(&A, &out);
+
+    double complex det = out.data[0] * out.data[3] - out.data[1] * out.data[2];
+    double err = cabs(det - cexp(tr));
+
+    lb_matrix_free(&A);
+    lb_matrix_free(&out);
+    return check("det(expm(A)) = exp(tr(A)) (2x2 non-normal)", err < TOL);
+}
+
+static int test_pauli_x_large_norm(void)
+{
+    puts("test_expm_pauli_large:");
+    /* Same analytic form as test_pauli_x but at theta = 3.0, so ||A||_1 = 3.
+     * This sits in the range where an under-scaled scaling-and-squaring leaves
+     * a ~1e-7 forward error; it pins the result near machine precision. */
+    size_t n = 2;
+    lb_matrix_t A   = {NULL, n};
+    lb_matrix_t out = {NULL, n};
+    lb_matrix_alloc(&A, n);
+    lb_matrix_alloc(&out, n);
+
+    double theta = 3.0;
+    A.data[0 * 2 + 1] = theta * I;
+    A.data[1 * 2 + 0] = theta * I;
+
+    lb_expm(&A, &out);
+
+    double c = cos(theta), s = sin(theta);
+    double complex expected[4] = {
+        c + 0.0*I,  0.0 + s*I,
+        0.0 + s*I,  c + 0.0*I
+    };
+
+    int fail = 0;
+    for (int i = 0; i < 4; i++) {
+        if (cabs(out.data[i] - expected[i]) > TOL) fail++;
+    }
+
+    lb_matrix_free(&A);
+    lb_matrix_free(&out);
+    return check("expm(i*3*sigma_x) analytic (||A||=3)", fail == 0);
+}
+
 int main(void)
 {
     printf("=== test_expm ===\n");
@@ -137,6 +202,8 @@ int main(void)
     failures += !test_zero_matrix();
     failures += !test_inverse();
     failures += !test_pauli_x();
-    printf("\n%d / 3 tests passed\n", 3 - failures);
+    failures += !test_jacobi_det();
+    failures += !test_pauli_x_large_norm();
+    printf("\n%d / 5 tests passed\n", 5 - failures);
     return failures > 0 ? 1 : 0;
 }

@@ -34,8 +34,16 @@ static const double PADE_COEFS[14] = {
     1.544088392870150e-17,
 };
 
-/* Scaling threshold: use s squarings when ||A||_1 / 2^s <= theta_13 */
-static const double THETA_13 = 5.371920351148152;
+/* Scaling threshold: use s squarings so ||A||_1 / 2^s <= THETA_13.
+ *
+ * Higham's theta_13 = 5.37 bounds the *backward* error of the [13/13] Padé
+ * approximant. This single-degree implementation (no degree selection) needs a
+ * smaller threshold to keep the *forward* error near machine precision: at
+ * ||A||_1 ~ 5 the unscaled approximant is only accurate to ~1e-6, while scaling
+ * to ||A/2^s||_1 <= 0.25 holds the forward error at ~1e-9 for small dense
+ * matrices and ~1e-13 for the larger superoperators. Squaring is backward stable
+ * for the well-conditioned propagators here, so over-scaling is safe. */
+static const double THETA_13 = 0.25;
 
 /* --------------------------------------------------------------------------
  * Internal matrix helpers (implementations used by expm and lindblad)
