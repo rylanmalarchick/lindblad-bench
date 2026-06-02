@@ -15,8 +15,10 @@
 #include <complex.h>
 #include <string.h>
 
-#define TOL     1e-6
-#define TOL_LAX 1e-4
+/* The amplitude-damping populations have an exact closed form, p1(t) = e^{-gt},
+ * and the propagator is an exact matrix exponential, so the match is pinned near
+ * machine precision rather than at a loose tolerance. */
+#define TOL_LAX 1e-12
 #define PASS "\033[32mPASS\033[0m"
 #define FAIL "\033[31mFAIL\033[0m"
 

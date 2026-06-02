@@ -15,7 +15,8 @@
 #include <math.h>
 #include <complex.h>
 
-#define TOL     1e-10
+/* Physical invariants accumulate rounding over a multi-step trajectory, so they
+ * are checked at TOL_LAX rather than machine epsilon. */
 #define TOL_LAX 1e-8
 #define PASS "\033[32mPASS\033[0m"
 #define FAIL "\033[31mFAIL\033[0m"
