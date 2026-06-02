@@ -6,16 +6,19 @@ Run: pip install -e .  (from the python/ directory)
 """
 
 import os
-import sys
 from setuptools import setup, Extension
 
+import numpy as np
+
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-build_dir = os.path.join(root, "build")
+# The static library location is overridable so CI / out-of-tree builds can
+# point at their own build directory (e.g. LINDBLAD_BUILD_DIR=build-audit).
+build_dir = os.environ.get("LINDBLAD_BUILD_DIR", os.path.join(root, "build"))
 
 ext = Extension(
     "lindblad_bench._lindblad_ext",
     sources=["lindblad_ext.c"],
-    include_dirs=[os.path.join(root, "include")],
+    include_dirs=[os.path.join(root, "include"), np.get_include()],
     library_dirs=[build_dir],
     libraries=["lindblad_bench", "m"],
     extra_compile_args=["-O3", "-march=native", "-std=c11"],
