@@ -29,9 +29,10 @@ int lb_build_propagator_ws(const lb_matrix_t *L,
                            lb_propagator_t *prop,
                            lb_expm_workspace_t *ws)
 {
-    size_t d2 = L->dim;
+    if (!L || !prop || !ws) return -1;
 
-    if (!L || !prop || !ws || ws->dim != d2) return -1;
+    size_t d2 = L->dim;
+    if (ws->dim != d2) return -1;
 
     prop->dt = dt;
     prop->d  = (size_t)round(sqrt((double)d2)); /* d² -> d */
