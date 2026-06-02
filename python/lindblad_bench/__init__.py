@@ -1,7 +1,9 @@
 """
 lindblad_bench — Python bindings for the bare-metal C Lindblad library.
 
-Provides a zero-copy NumPy interface to lb_propagate_step and lb_evolve.
+Provides a NumPy (complex128) interface to lb_propagate_step and lb_evolve.
+Inputs are copied into the library's aligned buffers and results are returned
+as new arrays.
 Build with: pip install -e python/
 
 Requires the C library to be built first:
@@ -16,7 +18,7 @@ except ImportError:
     _C_AVAILABLE = False
 
 __version__ = "0.1.0-dev"
-__all__ = ["propagate_step", "evolve", "build_lindbladian"]
+__all__ = ["propagate_step", "evolve"]
 
 
 def _require_c() -> None:

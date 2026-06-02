@@ -1,0 +1,49 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y cmake build-essential
+
+      # Position-independent code so the static library links into the Python
+      # extension. The default (non-PIC) build is for the benchmark binaries.
+      - name: Build C library and benchmarks
+        run: |
+          cmake -B build -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+          cmake --build build -- -j"$(nproc)"
+
+      - name: Run C tests
+        run: ctest --test-dir build --output-on-failure
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python deps and the extension
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy qutip pytest
+          LINDBLAD_BUILD_DIR="$PWD/build" python -m pip install -e python/
+
+      # The crossval test imports qutip and the C extension; a missing dependency
+      # is a collection error (red), never a silent skip. This step additionally
+      # fails if any crossval test is skipped or none are collected, closing the
+      # Phantom Greenlight gap.
+      - name: Cross-validate against QuTiP
+        run: |
+          set -o pipefail
+          python -m pytest python/test_crossval.py -v -m crossval --strict-markers \
+            | tee crossval.log
+          if grep -Eq "skipped|no tests ran" crossval.log; then
+            echo "::error::crossval tests were skipped or not collected"
+            exit 1
+          fi

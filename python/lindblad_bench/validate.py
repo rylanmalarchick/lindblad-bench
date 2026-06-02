@@ -20,30 +20,42 @@ except ImportError:
     HAS_QUTIP = False
 
 
-def run_qutip(d: int, t_end: float, dt: float) -> np.ndarray:
-    if not HAS_QUTIP:
-        raise ImportError("qutip required: pip install qutip")
-    H = qt.Qobj(np.diag(np.arange(d, dtype=complex)))
-    cops = []
-    if d >= 2:
-        L1 = np.zeros((d, d), dtype=complex)
-        L1[0, 1] = np.sqrt(1.0 / 50.0)
-        cops.append(qt.Qobj(L1))
-    rho0 = qt.Qobj(np.diag([1.0] + [0.0] * (d - 1)).astype(complex))
-    tlist = np.arange(0, t_end + dt, dt)
-    result = qt.mesolve(H, rho0, tlist, cops, [])
-    return result.states[-1].full()
+def _system(d: int):
+    """Hamiltonian, collapse operators, and a non-stationary initial state.
 
-
-def run_c(d: int, t_end: float, dt: float) -> np.ndarray:
-    from lindblad_bench import evolve
+    rho0 is the (|0>+|1>)/sqrt(2) superposition. The ground state |0><0| is a
+    fixed point of amplitude damping and would leave the propagator untested,
+    so it is deliberately avoided here."""
     H = np.diag(np.arange(d, dtype=complex))
     cops = []
     if d >= 2:
         L1 = np.zeros((d, d), dtype=complex)
         L1[0, 1] = np.sqrt(1.0 / 50.0)
         cops.append(L1)
-    rho0 = np.diag([1.0] + [0.0] * (d - 1)).astype(complex)
+    rho0 = np.zeros((d, d), dtype=complex)
+    for i in (0, 1):
+        for j in (0, 1):
+            rho0[i, j] = 0.5
+    return H, cops, rho0
+
+
+def run_qutip(d: int, t_end: float, dt: float) -> np.ndarray:
+    if not HAS_QUTIP:
+        raise ImportError("qutip required: pip install qutip")
+    H, cops, rho0 = _system(d)
+    tlist = np.arange(0, t_end + dt, dt)
+    # Tight solver tolerances so the comparison reflects the C propagator's
+    # accuracy, not mesolve's default integrator drift.
+    options = {"atol": 1e-12, "rtol": 1e-10, "nsteps": 100000}
+    result = qt.mesolve(qt.Qobj(H), qt.Qobj(rho0), tlist,
+                        c_ops=[qt.Qobj(c) for c in cops], e_ops=[],
+                        options=options)
+    return result.states[-1].full()
+
+
+def run_c(d: int, t_end: float, dt: float) -> np.ndarray:
+    from lindblad_bench import evolve
+    H, cops, rho0 = _system(d)
     return evolve(H, cops, rho0, t_end, dt)
 
 

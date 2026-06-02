@@ -48,6 +48,21 @@ cd build && ctest --output-on-failure
 ./build/bench_propagate
 ```
 
+### Cross-validation against QuTiP
+
+The C library is cross-validated against QuTiP through a NumPy extension. The
+static library must be built position-independent so it can link into the
+extension:
+
+```bash
+cmake -B build -DCMAKE_POSITION_INDEPENDENT_CODE=ON && cmake --build build
+pip install numpy qutip pytest
+pip install -e python/
+
+# Compares lb_evolve against qutip.mesolve and qutip's exact propagator.
+pytest python/test_crossval.py -m crossval
+```
+
 ## Repository Structure
 
 ```
@@ -57,7 +72,7 @@ benchmarks/     Timing harness (POSIX clock_gettime)
 reference/      QuTiP reference implementation
 analysis/       Cache math, Roofline model, speedup plots
 godbolt/        Compiler Explorer permalink catalog
-python/         CPython C extension (zero-copy NumPy interface)
+python/         CPython C extension (NumPy interface) + QuTiP cross-validation
 tests/          Correctness tests (trace preservation, unitarity)
 paper/          LaTeX source
 ```
