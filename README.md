@@ -96,7 +96,7 @@ pip install -r reference/requirements.txt
              Simulation for Near-Term Quantum Control},
   author = {Malarchick, Rylan},
   year   = {2026},
-  note   = {arXiv preprint, arXiv:XXXX.XXXXX}
+  note   = {arXiv preprint, arXiv:2603.18052}
 }
 ```
 
