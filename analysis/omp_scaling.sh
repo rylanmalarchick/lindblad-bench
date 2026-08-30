@@ -3,7 +3,7 @@
 #
 # Builds bench_batch with OpenMP enabled, runs a thread-count and batch-size
 # sweep for multiple trials, writes raw machine-tagged results, and then
-# summarizes medians into benchmarks/cpu_batch_results.csv.
+# summarizes medians into benchmarks/cpu_batch_results_<host>.csv.
 #
 # Usage:
 #   bash analysis/omp_scaling.sh
@@ -23,8 +23,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$ROOT/build-openmp"
 HOST_TAG="${HOST_TAG:-$(hostname -s)}"
-RAW_CSV="${RAW_CSV:-$ROOT/benchmarks/cpu_batch_results_raw.csv}"
-CSV="${CSV:-$ROOT/benchmarks/cpu_batch_results.csv}"
+RAW_CSV="${RAW_CSV:-$ROOT/benchmarks/cpu_batch_results_raw_${HOST_TAG}.csv}"
+CSV="${CSV:-$ROOT/benchmarks/cpu_batch_results_${HOST_TAG}.csv}"
 N_REPS="${N_REPS:-200}"
 TRIALS="${TRIALS:-5}"
 QUIET="${QUIET:-0}"

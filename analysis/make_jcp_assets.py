@@ -30,7 +30,7 @@ PAPER_DIR = ROOT / "paper"
 FIG_DIR = PAPER_DIR / "figures_jcp"
 GEN_DIR = PAPER_DIR / "generated"
 BENCH_DIR = ROOT / "benchmarks"
-FPGA_LOG = BENCH_DIR / "fpga" / "benchmark_compare_500_135mhz.log"
+FPGA_LOG = BENCH_DIR / "fpga" / "benchmark_compare_1000_108mhz_20260830.log"
 
 CPU_FILES = {
     "i9-13980HX": BENCH_DIR / "cpu_batch_results_intel.csv",
@@ -159,14 +159,15 @@ def parse_fpga_log(path: Path) -> dict[str, float | int]:
         values[key] = int(raw) if raw.isdigit() else float(raw)
 
     values["steady_state_cycles"] = 94
-    values["steady_state_ns"] = values["steady_state_cycles"] / 135.0 * 1e3
-    values["programmed_clock_mhz"] = 135
-    values["lut4_used"] = 1357
+    values["programmed_clock_mhz"] = 108
+    values["steady_state_ns"] = values["steady_state_cycles"] / values["programmed_clock_mhz"] * 1e3
+    # Utilisation of the 108 MHz build: benchmarks/fpga/utilization_108mhz.txt
+    values["lut4_used"] = 1035
     values["lut4_total"] = 20736
     values["dsp_used"] = 4
     values["dsp_total"] = 48
     values["trial_spread_cycles"] = 0
-    values["trials"] = 500
+    values["trials"] = 1000
     return values
 
 
@@ -242,7 +243,7 @@ host & $d=3$ latency (ns/step) & $d=9$ peak (GFLOP/s) & $d=27$ peak (GFLOP/s) \\
         rf"""
 \begin{{tabular}}{{@{{}}lrrrrr@{{}}}}
 \toprule
-platform & peak bandwidth (GB/s) & peak compute (GFLOP/s) & $d=3$ point & $d=9$ point & $d=27$ point \\
+platform & attained BW ceiling (GB/s) & attained compute ceiling (GFLOP/s) & $d=3$ point & $d=9$ point & $d=27$ point \\
 \midrule
 {chr(10).join(roofline_rows)}
 \bottomrule
@@ -396,40 +397,46 @@ def plot_empirical_roofline(cpu: pd.DataFrame, gpu: pd.DataFrame) -> None:
         ax.set_xlabel("Arithmetic intensity (FLOP/byte)")
         ax.set_ylabel("Performance (GFLOP/s)")
 
-    fig.suptitle("Empirical Rooflines from Peak Observed Throughput/Bandwidth", y=1.02, fontsize=11)
+    fig.suptitle("Empirical Rooflines from Attained Kernel Throughput and Bandwidth", y=1.02, fontsize=11)
     fig.savefig(FIG_DIR / "figure_roofline_empirical.pdf", bbox_inches="tight")
     plt.close(fig)
 
 
 def plot_cpu_thread_scaling(cpu: pd.DataFrame) -> None:
     colors = {3: "#1b9e77", 9: "#d95f02", 27: "#7570b3"}
-    fig, axes = plt.subplots(1, 2, figsize=(7.1, 3.1))
+    batches = [8, 32, 128]
+    fig, axes = plt.subplots(2, 3, figsize=(7.1, 4.6), sharey="row")
 
-    for ax, host in zip(axes, CPU_FILES):
-        host_df = cpu[(cpu["host_label"] == host) & (cpu["batch_size"] == 128)]
-        for d in [3, 9, 27]:
-            df = host_df[host_df["d"] == d].sort_values("threads")
-            ax.plot(
-                df["threads"],
-                df["median_gflops"],
-                marker="o",
-                linewidth=1.6,
-                markersize=4.0,
-                color=colors[d],
-                label=fr"$d={d}$",
-            )
-        ax.set_title(host)
-        ax.set_xlabel("Threads")
-        ax.set_ylabel("GFLOP/s")
-        ax.set_xticks(sorted(host_df["threads"].unique()))
+    for row, host in enumerate(CPU_FILES):
+        for col, batch in enumerate(batches):
+            ax = axes[row, col]
+            host_df = cpu[(cpu["host_label"] == host) & (cpu["batch_size"] == batch)]
+            for d in [3, 9, 27]:
+                df = host_df[host_df["d"] == d].sort_values("threads")
+                ax.plot(
+                    df["threads"],
+                    df["median_gflops"],
+                    marker="o",
+                    linewidth=1.4,
+                    markersize=3.4,
+                    color=colors[d],
+                    label=fr"$d={d}$",
+                )
+            if row == 0:
+                ax.set_title(f"batch {batch}", fontsize=9)
+            if col == 0:
+                ax.set_ylabel(f"{host}\nGFLOP/s", fontsize=8)
+            if row == 1:
+                ax.set_xlabel("Threads")
+            ax.set_xticks(sorted(host_df["threads"].unique()))
+            ax.tick_params(labelsize=7)
 
     legend_handles = [
-        Line2D([0], [0], color=colors[d], marker="o", linewidth=1.6, markersize=4.0, label=fr"$d={d}$")
+        Line2D([0], [0], color=colors[d], marker="o", linewidth=1.4, markersize=3.4, label=fr"$d={d}$")
         for d in [3, 9, 27]
     ]
     fig.legend(legend_handles, [h.get_label() for h in legend_handles], loc="upper center", ncol=3, frameon=False, bbox_to_anchor=(0.5, 1.02))
-    fig.suptitle("CPU Thread Scaling at Batch Size 128", y=1.06, fontsize=11)
-    fig.tight_layout(rect=[0, 0, 1, 0.9])
+    fig.tight_layout(rect=[0, 0, 1, 0.95])
     fig.savefig(FIG_DIR / "figure_cpu_thread_scaling.pdf", bbox_inches="tight")
     plt.close(fig)
 
@@ -536,7 +543,7 @@ def plot_grape_breakdown(grape_c: pd.DataFrame, qutip_grape: pd.DataFrame) -> No
         on=["host_label", "d"],
         how="inner",
     )
-    fig, axes = plt.subplots(2, 1, figsize=(3.45, 4.9))
+    fig, axes = plt.subplots(2, 1, figsize=(3.45, 3.7))
     colors = {"build": "#c44e52", "chain": "#4c72b0", "qutip": "#55a868", "qexpm": "#8172b3"}
 
     for ax, host in zip(axes, CPU_FILES):
@@ -634,7 +641,7 @@ def plot_fpga_latency(cpu: pd.DataFrame, fpga: dict[str, float | int]) -> None:
     ax.text(
         2.5,
         max(values) * 1.08,
-        "FPGA spread: 0 cycles over 500 trials",
+        f"FPGA spread: 0 cycles over {fpga['trials']} trials",
         ha="center",
         va="bottom",
         fontsize=8,

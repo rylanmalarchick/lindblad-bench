@@ -85,8 +85,8 @@ Validation:
 
 Current benchmark logs:
 
-- Intel optimized run: `/home/rylan/dev/projects/lindblad-bench/benchmarks/grape_c_intel_opt.log`
-- Ryzen optimized run: `/home/rylan/dev/projects/lindblad-bench/benchmarks/grape_c_ryzen_opt.log`
+- Intel optimized run: `benchmarks/grape_c_results_raw_theLittleMachine.csv` (superseded the 2026-04 log)
+- Ryzen optimized run: `benchmarks/grape_c_results_raw_theMachine.csv` (superseded the 2026-04 log)
 
 These replace the older `run1` / `run2` GRAPE numbers as the manuscript source of truth.
 

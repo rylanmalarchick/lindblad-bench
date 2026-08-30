@@ -1,0 +1,23 @@
+# Device utilisation of the 108 MHz matvec_pll_top build (nextpnr pack log,
+# tang-nano-20k analysis/results/matvec_pll_top_pack.log, build of 2026-07-10)
+Device utilisation:
+                 VCC:       1/      1   100%
+                 IOB:       9/    384     2%
+                LUT4:    1035/  20736     4%
+            IOLOGICI:       0/    384     0%
+            IOLOGICO:       0/    384     0%
+           MUX2_LUT5:      61/  10368     0%
+           MUX2_LUT6:      18/   5184     0%
+           MUX2_LUT7:       8/   2592     0%
+           MUX2_LUT8:       2/   2592     0%
+                 ALU:     284/  15552     1%
+                 GND:       1/      1   100%
+                 DFF:     891/  15552     5%
+           RAM16SDP4:      24/    648     3%
+               BSRAM:       2/     46     4%
+              ALU54D:       0/     24     0%
+     MULTADDALU18X18:       0/     24     0%
+        MULTALU18X18:       0/     24     0%
+        MULTALU36X18:       0/     24     0%
+           MULT36X36:       0/     12     0%
+           MULT18X18:       4/     48     8%
