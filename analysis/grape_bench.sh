@@ -16,7 +16,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUILD_DIR="$ROOT/build-grape"
+BUILD_DIR="$ROOT/build-grape-jcp"
 HOST_TAG="${HOST_TAG:-$(hostname -s)}"
 N_TRIALS="${N_TRIALS:-5}"
 CSV="${CSV:-$ROOT/benchmarks/grape_c_results_raw_${HOST_TAG}.csv}"
