@@ -110,7 +110,7 @@ def solver_options(solver_mode: str) -> dict:
 
 def normalize_solver_modes(solver_mode: str) -> list[str]:
     if solver_mode == "all":
-        modes = ["default"]
+        modes = ["default", "propagator"]
         if matrix_form_supported():
             modes.append("matrix_form")
         return modes

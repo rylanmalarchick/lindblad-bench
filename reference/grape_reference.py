@@ -31,9 +31,21 @@ assert spec.loader is not None
 spec.loader.exec_module(reference)
 
 
+GRAPE_PHI = 0.6180339887498949  # 1/golden ratio; matches bench_grape.c
+
+
 def build_drive_schedule(n_segments: int, seed: int = 42) -> np.ndarray:
-    rng = np.random.default_rng(seed)
-    return 0.1 * (rng.random(n_segments) - 0.5)
+    """Deterministic low-discrepancy drive schedule.
+
+    omega_s = 0.1 * (frac((s + 1) * phi) - 0.5). Identical to
+    lb_grape_drive_amplitude() in benchmarks/bench_grape.c so the C and
+    QuTiP benchmarks evolve under the same controls. `seed` is accepted for
+    call compatibility and ignored.
+    """
+    del seed
+    s = np.arange(1, n_segments + 1, dtype=np.float64)
+    x = s * GRAPE_PHI
+    return 0.1 * ((x - np.floor(x)) - 0.5)
 
 
 def sigma_x_truncated(d: int) -> qt.Qobj:
@@ -55,6 +67,28 @@ def build_segment_hamiltonians(
     return [H0 + omega * drive for omega in omegas]
 
 
+def run_piecewise_propagator(
+    d: int,
+    n_segments: int,
+    steps_per_seg: int,
+    dt: float,
+    seed: int = 42,
+) -> qt.Qobj:
+    """Algorithm-matched QuTiP path: P_s = expm(L_s dt), applied steps_per_seg
+    times per segment on the vectorized state. Same operation count as the
+    C benchmark; the exponential and matvec come from QuTiP/SciPy."""
+    _, c_ops = reference.build_transmon_system(d)
+    rho_vec = qt.operator_to_vector(reference.ground_state(d))
+
+    for H in build_segment_hamiltonians(d, n_segments, seed=seed):
+        L = qt.liouvillian(H, c_ops)
+        P = (L * dt).expm()
+        for _ in range(steps_per_seg):
+            rho_vec = P * rho_vec
+
+    return qt.vector_to_operator(rho_vec)
+
+
 def run_piecewise_mesolve(
     d: int,
     n_segments: int,
@@ -63,6 +97,9 @@ def run_piecewise_mesolve(
     solver_mode: str = "default",
     seed: int = 42,
 ) -> qt.Qobj:
+    if solver_mode == "propagator":
+        return run_piecewise_propagator(d, n_segments, steps_per_seg, dt, seed=seed)
+
     _, c_ops = reference.build_transmon_system(d)
     rho = reference.ground_state(d)
     seg_duration = steps_per_seg * dt
@@ -100,8 +137,9 @@ def bench_piecewise_mesolve(
         seed=seed,
     )
 
-    t0 = time.perf_counter_ns()
+    trial_ns = []
     for _ in range(n_trials):
+        t0 = time.perf_counter_ns()
         run_piecewise_mesolve(
             d,
             n_segments,
@@ -110,9 +148,10 @@ def bench_piecewise_mesolve(
             solver_mode=solver_mode,
             seed=seed,
         )
-    t1 = time.perf_counter_ns()
+        t1 = time.perf_counter_ns()
+        trial_ns.append(t1 - t0)
 
-    ns_total = (t1 - t0) / n_trials
+    ns_median = float(np.median(trial_ns))
     total_steps = n_segments * steps_per_seg
     return {
         "d": d,
@@ -120,8 +159,9 @@ def bench_piecewise_mesolve(
         "n_segments": n_segments,
         "steps_per_seg": steps_per_seg,
         "n_trials": n_trials,
-        "ms_per_trajectory": ns_total / 1e6,
-        "ns_per_step": ns_total / total_steps,
+        "ms_per_trajectory": ns_median / 1e6,
+        "ns_per_step": ns_median / total_steps,
+        "ms_trials": ";".join(f"{t / 1e6:.6f}" for t in trial_ns),
         "qutip_version": qt.__version__,
     }
 
@@ -131,7 +171,7 @@ def bench_all(outpath: str, solver_mode: str, dt: float) -> None:
     configs = {
         3: {"n_segments": 100, "steps_per_seg": 20, "n_trials": 20},
         9: {"n_segments": 50, "steps_per_seg": 20, "n_trials": 5},
-        27: {"n_segments": 20, "steps_per_seg": 20, "n_trials": 1},
+        27: {"n_segments": 20, "steps_per_seg": 20, "n_trials": 5},
     }
 
     results = []
@@ -168,6 +208,7 @@ def bench_all(outpath: str, solver_mode: str, dt: float) -> None:
                 "n_trials",
                 "ms_per_trajectory",
                 "ns_per_step",
+                "ms_trials",
                 "qutip_version",
             ],
         )
@@ -188,7 +229,7 @@ def main() -> None:
     parser.add_argument("--outdir", default="benchmarks")
     parser.add_argument(
         "--solver-mode",
-        choices=["default", "matrix_form", "all"],
+        choices=["default", "propagator", "matrix_form", "all"],
         default="default",
     )
     args = parser.parse_args()
