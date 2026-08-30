@@ -1,0 +1,5 @@
+machine,git_commit,d,threads,batch_size,n_reps,ns_per_batch,ns_per_state_step,mstate_steps_s,gflops,gbytes_s
+theLittleMachine,4fd84c6-dirty,4,1,128,2000,14819.69,115.78,8.637156,17.688896,39.800016
+theLittleMachine,4fd84c6-dirty,8,1,128,2000,232058.90,1812.96,0.551584,18.074308,37.278259
+theLittleMachine,4fd84c6-dirty,4,8,128,2000,12333.92,96.36,10.377881,21.253900,47.821275
+theLittleMachine,4fd84c6-dirty,8,8,128,2000,58041.48,453.45,2.205319,72.263904,149.044302

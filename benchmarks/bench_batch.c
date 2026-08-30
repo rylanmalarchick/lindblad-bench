@@ -10,6 +10,8 @@
  *   ./bench_batch [n_reps] [batch_size]
  *
  * Default n_reps = 2000, batch_size = 64.
+ * The size grid defaults to d = 3, 9, 27. Set D_LIST="4 8" in the
+ * environment to run other sizes (used for cost-model spot checks).
  */
 
 #include "lindblad_bench.h"
@@ -220,6 +222,21 @@ int main(int argc, char **argv)
     printf("lindblad-bench: batch propagation benchmark\n");
     printf("Measures lb_propagate_step_batch over independent states\n");
     printf("n_reps = %ld, batch_size = %zu\n", n_reps, batch_size);
+
+    const char *d_list = getenv("D_LIST");
+    if (d_list && d_list[0]) {
+        /* Parse at most 16 space-separated sizes. */
+        const char *p = d_list;
+        for (int k = 0; k < 16 && *p; k++) {
+            char *end;
+            long d = strtol(p, &end, 10);
+            if (end == p) break;
+            if (d >= 2) run_bench((size_t)d, n_reps, batch_size);
+            p = end;
+            while (*p == ' ') p++;
+        }
+        return 0;
+    }
 
     run_bench(3, n_reps, batch_size);
     run_bench(9, n_reps, batch_size);
