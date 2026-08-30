@@ -593,6 +593,26 @@ def plot_fixed_point_drift() -> None:
     plt.close(fig)
 
 
+FPGA_DRIFT_HW_CSV = BENCH_DIR / "fpga" / "drift_hw_108mhz_20260830.csv"
+
+
+def write_fpga_drift_table() -> None:
+    df = pd.read_csv(FPGA_DRIFT_HW_CSV)
+    rows = []
+    for _, r in df.sort_values(["case", "steps"]).iterrows():
+        match = "yes" if int(r["hw_matches_model"]) == 1 else f"no ({int(r['max_lsb_diff'])} LSB)"
+        rows.append(
+            f"{r['case']} & {int(r['steps'])} & {match} & {r['trace_dist_vs_double']:.2e} & "
+            f"{r['trace_drift']:.2e} & {r['p1_err']:.2e} \\\\"
+        )
+    write_table(
+        GEN_DIR / "table_fpga_drift_hw.tex",
+        "\\begin{tabular}{@{}lrlrrr@{}}\n\\toprule\n"
+        "case & steps & board = model & trace distance & $|\\mathrm{Tr}\\rho-1|$ & $|\\Delta p_1|$ \\\\\n"
+        "\\midrule\n" + "\n".join(rows) + "\n\\bottomrule\n\\end{tabular}\n",
+    )
+
+
 def plot_fpga_latency(cpu: pd.DataFrame, fpga: dict[str, float | int]) -> None:
     i9_latency = cpu[(cpu["host_label"] == "i9-13980HX") & (cpu["d"] == 3) & (cpu["batch_size"] == 1)]["median_ns_per_state_step"].min()
     ryzen_latency = cpu[(cpu["host_label"] == "Ryzen 5 1600") & (cpu["d"] == 3) & (cpu["batch_size"] == 1)]["median_ns_per_state_step"].min()
@@ -639,6 +659,7 @@ def main() -> None:
     plot_grape_breakdown(grape_c, qutip_grape)
     plot_grape_build_breakdown(grape_c)
     plot_fixed_point_drift()
+    write_fpga_drift_table()
     plot_fpga_latency(cpu, fpga)
 
     print("Wrote figures to", FIG_DIR)
