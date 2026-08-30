@@ -30,8 +30,7 @@ PAPER_DIR = ROOT / "paper"
 FIG_DIR = PAPER_DIR / "figures_jcp"
 GEN_DIR = PAPER_DIR / "generated"
 BENCH_DIR = ROOT / "benchmarks"
-FPGA_ROOT = Path("/home/rylan/dev/projects/tang-nano-20k")
-FPGA_LOG = FPGA_ROOT / "analysis" / "results" / "benchmark_compare_500.log"
+FPGA_LOG = BENCH_DIR / "fpga" / "benchmark_compare_500_135mhz.log"
 
 CPU_FILES = {
     "i9-13980HX": BENCH_DIR / "cpu_batch_results_intel.csv",
@@ -44,8 +43,8 @@ GPU_FILES = {
 }
 
 GRAPE_LOGS = {
-    "i9-13980HX": BENCH_DIR / "grape_c_intel_opt.log",
-    "Ryzen 5 1600": BENCH_DIR / "grape_c_ryzen_opt.log",
+    "i9-13980HX": BENCH_DIR / "grape_c_results_raw_theLittleMachine.csv",
+    "Ryzen 5 1600": BENCH_DIR / "grape_c_results_raw_theMachine.csv",
 }
 
 QUTIP_GRAPE_FILES = {
@@ -101,51 +100,42 @@ def load_gpu() -> pd.DataFrame:
 
 
 def load_qutip_grape() -> pd.DataFrame:
+    """One row per (host, d) with columns qutip_mesolve_ms and qutip_expm_ms.
+
+    solver_mode "default" is released mesolve (adaptive ODE). "propagator"
+    is the algorithm-matched expm path. Values are medians over trials."""
     frames = []
     for host, path in QUTIP_GRAPE_FILES.items():
         df = pd.read_csv(path)
         df["host_label"] = host
         frames.append(df)
-    return pd.concat(frames, ignore_index=True)
+    long = pd.concat(frames, ignore_index=True)
+    wide = long.pivot_table(
+        index=["host_label", "d"],
+        columns="solver_mode",
+        values="ms_per_trajectory",
+    ).reset_index()
+    wide = wide.rename(columns={"default": "qutip_mesolve_ms", "propagator": "qutip_expm_ms"})
+    trials = long[long["solver_mode"] == "default"][["host_label", "d", "n_trials"]]
+    wide = wide.merge(trials.rename(columns={"n_trials": "qutip_n_trials"}), on=["host_label", "d"])
+    wide["ms_per_trajectory"] = wide["qutip_mesolve_ms"]
+    return wide
 
 
-def parse_grape_log(path: Path, host_label: str) -> pd.DataFrame:
-    current: dict[str, float | int | str] | None = None
-    rows: list[dict[str, float | int | str]] = []
-
-    d_re = re.compile(r"=== d=(\d+),")
-    setup_re = re.compile(r"\[setup\]\s+invariant superops : ([0-9.]+) ms")
-    build_re = re.compile(r"\[build\]\s+all propagators : ([0-9.]+) ms")
-    chain_re = re.compile(r"\[chain\]\s+ms/trajectory\s+: ([0-9.]+) ms")
-    total_re = re.compile(r"\[total\]\s+landscape point : ([0-9.]+) ms")
-
-    for line in path.read_text().splitlines():
-        if match := d_re.search(line):
-            if current is not None:
-                rows.append(current)
-            current = {"host_label": host_label, "d": int(match.group(1))}
-            continue
-        if current is None:
-            continue
-        if match := setup_re.search(line):
-            current["setup_ms"] = float(match.group(1))
-        elif match := build_re.search(line):
-            current["build_ms"] = float(match.group(1))
-        elif match := chain_re.search(line):
-            current["chain_ms"] = float(match.group(1))
-        elif match := total_re.search(line):
-            current["total_ms"] = float(match.group(1))
-
-    if current is not None:
-        rows.append(current)
-
-    return pd.DataFrame(rows)
+GRAPE_BREAKDOWN_COLS = ["assemble_ms", "scale_ms", "pade_mul_ms", "pade_axpy_ms", "solve_ms", "square_ms"]
 
 
 def load_grape_c() -> pd.DataFrame:
+    """One row per (host, d): medians over trials of every timing column."""
     frames = []
     for host, path in GRAPE_LOGS.items():
-        frames.append(parse_grape_log(path, host))
+        raw = pd.read_csv(path)
+        value_cols = ["setup_ms", "build_ms", "chain_ms", "total_ms", "n_squarings"] + GRAPE_BREAKDOWN_COLS
+        med = raw.groupby("d")[value_cols].median().reset_index()
+        med["n_trials"] = raw.groupby("d")["trial"].count().values
+        med["n_segments"] = raw.groupby("d")["n_segments"].first().values
+        med["host_label"] = host
+        frames.append(med)
     return pd.concat(frames, ignore_index=True)
 
 
@@ -261,7 +251,7 @@ platform & peak bandwidth (GB/s) & peak compute (GFLOP/s) & $d=3$ point & $d=9$ 
     )
 
     merged = grape_c.merge(
-        qutip_grape[["host_label", "d", "ms_per_trajectory"]],
+        qutip_grape[["host_label", "d", "qutip_mesolve_ms", "qutip_expm_ms"]],
         on=["host_label", "d"],
         how="inner",
     )
@@ -271,17 +261,68 @@ platform & peak bandwidth (GB/s) & peak compute (GFLOP/s) & $d=3$ point & $d=9$ 
     for _, row in merged.iterrows():
         grape_rows.append(
             f"{host_short[row['host_label']]} & $d={int(row['d'])}$ & {row['total_ms']:.3f} & "
-            f"{row['ms_per_trajectory']:.3f} & {speedup_string(row['total_ms'], row['ms_per_trajectory'])} \\\\"
+            f"{row['qutip_mesolve_ms']:.3f} & {speedup_string(row['total_ms'], row['qutip_mesolve_ms'])} & "
+            f"{row['qutip_expm_ms']:.3f} & {speedup_string(row['total_ms'], row['qutip_expm_ms'])} \\\\"
         )
 
     write_table(
         GEN_DIR / "table_grape_summary.tex",
         rf"""
-\begin{{tabular}}{{@{{}}llrrl@{{}}}}
+\begin{{tabular}}{{@{{}}llrrlrl@{{}}}}
 \toprule
-host & $d$ & C (ms) & QuTiP (ms) & winner \\
+host & $d$ & C (ms) & QuTiP mesolve (ms) & vs mesolve & QuTiP expm (ms) & vs expm \\
 \midrule
 {chr(10).join(grape_rows)}
+\bottomrule
+\end{{tabular}}
+""",
+    )
+
+    breakdown_rows = []
+    for _, row in merged.iterrows():
+        build = row["build_ms"]
+        other = build - row["solve_ms"] - row["pade_mul_ms"] - row["square_ms"]
+        breakdown_rows.append(
+            f"{host_short[row['host_label']]} & $d={int(row['d'])}$ & {build:.1f} & "
+            f"{100 * row['solve_ms'] / build:.1f} & {100 * row['pade_mul_ms'] / build:.1f} & "
+            f"{100 * row['square_ms'] / build:.1f} & {100 * other / build:.1f} & "
+            f"{row['n_squarings'] / row['n_segments']:.0f} \\\\"
+        )
+
+    write_table(
+        GEN_DIR / "table_grape_build_breakdown.tex",
+        rf"""
+\begin{{tabular}}{{@{{}}llrrrrrr@{{}}}}
+\toprule
+host & $d$ & build (ms) & solve (\%) & Pad\'e products (\%) & squarings (\%) & other (\%) & $s$ per segment \\
+\midrule
+{chr(10).join(breakdown_rows)}
+\bottomrule
+\end{{tabular}}
+""",
+    )
+
+    pinned = pd.read_csv(BENCH_DIR / "qutip_grape_results_intel_pinned.csv")
+    default = pd.read_csv(QUTIP_GRAPE_FILES["i9-13980HX"])
+    thread_rows = []
+    for mode, mode_label in (("default", "mesolve"), ("propagator", "expm")):
+        for d in (3, 9, 27):
+            a = default[(default["solver_mode"] == mode) & (default["d"] == d)].iloc[0]
+            b = pinned[(pinned["solver_mode"] == mode) & (pinned["d"] == d)].iloc[0]
+            a_tr = [float(v) for v in a["ms_trials"].split(";")]
+            b_tr = [float(v) for v in b["ms_trials"].split(";")]
+            thread_rows.append(
+                f"{mode_label} & $d={d}$ & {a['ms_per_trajectory']:.1f} & {min(a_tr):.1f}--{max(a_tr):.1f} & "
+                f"{b['ms_per_trajectory']:.1f} & {min(b_tr):.1f}--{max(b_tr):.1f} \\\\"
+            )
+    write_table(
+        GEN_DIR / "table_qutip_thread_sensitivity.tex",
+        rf"""
+\begin{{tabular}}{{@{{}}llrrrr@{{}}}}
+\toprule
+QuTiP path & $d$ & default median (ms) & default range & pinned median (ms) & pinned range \\
+\midrule
+{chr(10).join(thread_rows)}
 \bottomrule
 \end{{tabular}}
 """,
@@ -457,22 +498,55 @@ def plot_gpu_cpu_ratio(cpu: pd.DataFrame, gpu: pd.DataFrame) -> None:
     plt.close(fig)
 
 
+def plot_grape_build_breakdown(grape_c: pd.DataFrame) -> None:
+    """100%-stacked bars of the build term per (host, d), total ms annotated."""
+    labels = {
+        "solve_ms": "linear solve",
+        "pade_mul_ms": "Pad\u00e9 products",
+        "square_ms": "squarings",
+        "pade_axpy_ms": "Pad\u00e9 element-wise",
+        "scale_ms": "scaling",
+        "assemble_ms": "assembly",
+    }
+    palette = ["#c44e52", "#4c72b0", "#8172b3", "#55a868", "#ccb974", "#64b5cd"]
+    fig, ax = plt.subplots(figsize=(3.45, 2.6), constrained_layout=True)
+    df = grape_c.copy()
+    df["host_order"] = df["host_label"].map({h: i for i, h in enumerate(CPU_FILES)})
+    df = df.sort_values(["host_order", "d"]).reset_index(drop=True)
+    x = np.arange(len(df))
+    bottom = np.zeros(len(df))
+    for key, color in zip(labels, palette):
+        frac = 100.0 * df[key].to_numpy() / df["build_ms"].to_numpy()
+        ax.bar(x, frac, 0.7, bottom=bottom, color=color, label=labels[key])
+        bottom += frac
+    for i, row in df.iterrows():
+        ax.text(x[i], 101, f"{row['build_ms']:.3g} ms", ha="center", va="bottom", fontsize=6.5)
+    short = {"i9-13980HX": "i9", "Ryzen 5 1600": "Ryzen"}
+    ax.set_xticks(x, labels=[f"{short[r['host_label']]}\n$d={int(r['d'])}$" for _, r in df.iterrows()], fontsize=7)
+    ax.set_ylim(0, 112)
+    ax.set_ylabel("share of build time (%)")
+    ax.legend(fontsize=6, ncol=2, loc="lower center", frameon=False, bbox_to_anchor=(0.5, -0.5))
+    fig.savefig(FIG_DIR / "figure_grape_build_breakdown.pdf", bbox_inches="tight")
+    plt.close(fig)
+
+
 def plot_grape_breakdown(grape_c: pd.DataFrame, qutip_grape: pd.DataFrame) -> None:
     merged = grape_c.merge(
-        qutip_grape[["host_label", "d", "ms_per_trajectory"]],
+        qutip_grape[["host_label", "d", "qutip_mesolve_ms", "qutip_expm_ms"]],
         on=["host_label", "d"],
         how="inner",
     )
     fig, axes = plt.subplots(2, 1, figsize=(3.45, 4.9))
-    colors = {"build": "#c44e52", "chain": "#4c72b0", "qutip": "#55a868"}
+    colors = {"build": "#c44e52", "chain": "#4c72b0", "qutip": "#55a868", "qexpm": "#8172b3"}
 
     for ax, host in zip(axes, CPU_FILES):
         df = merged[merged["host_label"] == host].sort_values("d")
         x = np.arange(len(df))
-        width = 0.34
-        ax.bar(x - width / 2, df["build_ms"], width, color=colors["build"], label="C build")
-        ax.bar(x - width / 2, df["chain_ms"], width, bottom=df["build_ms"], color=colors["chain"], label="C chain")
-        ax.bar(x + width / 2, df["ms_per_trajectory"], width, color=colors["qutip"], alpha=0.9, label="QuTiP total")
+        width = 0.26
+        ax.bar(x - width, df["build_ms"], width, color=colors["build"], label="C build")
+        ax.bar(x - width, df["chain_ms"], width, bottom=df["build_ms"], color=colors["chain"], label="C chain")
+        ax.bar(x, df["qutip_mesolve_ms"], width, color=colors["qutip"], alpha=0.9, label="QuTiP mesolve")
+        ax.bar(x + width, df["qutip_expm_ms"], width, color=colors["qexpm"], alpha=0.9, label="QuTiP expm")
 
         ax.set_xticks(x, labels=[fr"$d={int(v)}$" for v in df["d"]])
         ax.set_yscale("log")
@@ -485,13 +559,37 @@ def plot_grape_breakdown(grape_c: pd.DataFrame, qutip_grape: pd.DataFrame) -> No
         by_label.values(),
         by_label.keys(),
         loc="upper center",
-        ncol=3,
+        ncol=2,
         frameon=False,
         bbox_to_anchor=(0.5, 1.01),
         columnspacing=1.2,
     )
     fig.tight_layout(rect=[0, 0, 1, 0.93])
     fig.savefig(FIG_DIR / "figure_grape_breakdown.pdf", bbox_inches="tight")
+    plt.close(fig)
+
+
+FIXED_POINT_CSV = BENCH_DIR / "fixed_point_accuracy.csv"
+
+
+def plot_fixed_point_drift() -> None:
+    """Q1.15 and Q1.31 error vs double over step count, driven d=3 case."""
+    df = pd.read_csv(FIXED_POINT_CSV)
+    fig, axes = plt.subplots(1, 2, figsize=(7.0, 2.6), constrained_layout=True)
+    styles = {"Q1.15": ("#c44e52", "-"), "Q1.31": ("#4c72b0", "--")}
+    for ax, metric, label in zip(axes, ["trace_dist", "trace_drift"], ["trace distance to double", "$|\\mathrm{Tr}\\rho - 1|$"]):
+        for case, marker in (("undriven", "o"), ("driven", "s")):
+            sub = df[df["case"] == case]
+            for fmt, (color, ls) in styles.items():
+                d = sub[sub["format"] == fmt].sort_values("step")
+                ax.plot(d["step"], d[metric], ls, color=color, marker=marker, ms=2.5, lw=1,
+                        label=f"{fmt}, {case}")
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_xlabel("propagation steps")
+        ax.set_ylabel(label)
+    axes[0].legend(fontsize=6, frameon=False)
+    fig.savefig(FIG_DIR / "figure_fixed_point_drift.pdf", bbox_inches="tight")
     plt.close(fig)
 
 
@@ -539,6 +637,8 @@ def main() -> None:
     plot_cpu_thread_scaling(cpu)
     plot_gpu_cpu_ratio(cpu, gpu)
     plot_grape_breakdown(grape_c, qutip_grape)
+    plot_grape_build_breakdown(grape_c)
+    plot_fixed_point_drift()
     plot_fpga_latency(cpu, fpga)
 
     print("Wrote figures to", FIG_DIR)
