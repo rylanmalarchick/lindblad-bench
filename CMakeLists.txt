@@ -85,7 +85,7 @@ endif()
 # ---------------------------------------------------------------------------
 # Benchmarks
 # ---------------------------------------------------------------------------
-foreach(bench propagate evolve expm grape batch)
+foreach(bench propagate evolve expm grape batch stream)
     add_executable(bench_${bench} benchmarks/bench_${bench}.c)
     target_link_libraries(bench_${bench} lindblad_bench m)
     target_include_directories(bench_${bench} PRIVATE
@@ -96,6 +96,8 @@ endforeach()
 if(ENABLE_CUDA)
     add_executable(bench_cuda benchmarks/bench_cuda.c)
     target_link_libraries(bench_cuda lindblad_cuda)
+    add_executable(bench_cuda_probe cuda/bench_cuda_probe.cu)
+    set_target_properties(bench_cuda_probe PROPERTIES CUDA_STANDARD 17 CUDA_STANDARD_REQUIRED ON)
     target_include_directories(bench_cuda PRIVATE
         ${CMAKE_SOURCE_DIR}/include
         ${CMAKE_SOURCE_DIR}/cuda

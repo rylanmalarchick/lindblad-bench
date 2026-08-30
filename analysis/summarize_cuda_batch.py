@@ -16,6 +16,9 @@ NUMERIC_FIELDS = [
     "kernel_ns_per_state_step",
     "kernel_gflops",
     "kernel_gbytes_s",
+    "resident_ns_per_state_step",
+    "resident_gflops",
+    "resident_gbytes_s",
 ]
 
 GROUP_FIELDS = [

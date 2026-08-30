@@ -99,8 +99,8 @@ void lb_propagator_free(lb_propagator_t *prop)
  * Vectorize ρ_in (d×d -> d² vector), multiply by P (d²×d²), reshape to d×d.
  *
  * This is the function analyzed on Godbolt and in the Roofline model.
- * Arithmetic intensity: (2*d^4 FLOPs) / (d^4 * 16 bytes) = 1/8 FLOP/byte
- * at the limit where P fits in cache; bandwidth-bound when it doesn't.
+ * Arithmetic intensity: (8*d^4 FLOPs) / (16*(d^4 + 2*d^2) bytes) -> 0.5 FLOP/byte
+ * from below; bandwidth-sensitive at every tested size.
  * -------------------------------------------------------------------------- */
 int lb_propagate_step(const lb_propagator_t *prop,
                       const lb_matrix_t *rho_in,

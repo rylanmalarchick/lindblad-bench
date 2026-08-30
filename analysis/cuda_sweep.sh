@@ -21,7 +21,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUILD_DIR="$ROOT/build-cuda"
+BUILD_DIR="$ROOT/build-cuda-jcp"
 HOST_TAG="${HOST_TAG:-$(hostname -s)}"
 RAW_CSV="${RAW_CSV:-$ROOT/benchmarks/cuda_batch_results_raw.csv}"
 CSV="${CSV:-$ROOT/benchmarks/cuda_batch_results.csv}"
@@ -50,7 +50,7 @@ fi
 GPU_NAME="${GPU_NAME:-$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n 1)}"
 
 mkdir -p "$(dirname "$CSV")"
-echo "machine,gpu_name,git_commit,trial,d,batch_size,n_reps,host_ns_per_state_step,host_gflops,host_gbytes_s,kernel_ns_per_state_step,kernel_gflops,kernel_gbytes_s" > "$RAW_CSV"
+echo "machine,gpu_name,git_commit,trial,d,batch_size,n_reps,host_ns_per_state_step,host_gflops,host_gbytes_s,kernel_ns_per_state_step,kernel_gflops,kernel_gbytes_s,resident_ns_per_state_step,resident_gflops,resident_gbytes_s" > "$RAW_CSV"
 
 cmake -S "$ROOT" -B "$BUILD_DIR" -DENABLE_CUDA=ON -DCMAKE_BUILD_TYPE=Release > /dev/null
 cmake --build "$BUILD_DIR" --target bench_cuda -- -j"$(nproc)" > /dev/null
@@ -79,18 +79,20 @@ for trial in $(seq 1 "$TRIALS"); do
                         value = $(i + 1);
                         v[key] = value;
                     }
-                    printf "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
+                    printf "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
                            machine, gpu_name, git_commit, trial, v["d"],
                            v["batch_size"], v["n_reps"],
                            v["host_ns_per_state_step"], v["host_gflops"], v["host_gbytes_s"],
-                           v["kernel_ns_per_state_step"], v["kernel_gflops"], v["kernel_gbytes_s"];
+                           v["kernel_ns_per_state_step"], v["kernel_gflops"], v["kernel_gbytes_s"],
+                           v["resident_ns_per_state_step"], v["resident_gflops"], v["resident_gbytes_s"];
                 }')
             echo "$csv_line" >> "$RAW_CSV"
         done <<< "$output"
     done
 done
 
-"$UV_BIN" run python "$ROOT/analysis/summarize_cuda_batch.py" "$RAW_CSV" "$CSV"
+PY="${PYTHON_BIN:-$ROOT/.venv-qutip/bin/python}"
+"$PY" "$ROOT/analysis/summarize_cuda_batch.py" "$RAW_CSV" "$CSV"
 
 echo ""
 echo "Raw results written to $RAW_CSV"

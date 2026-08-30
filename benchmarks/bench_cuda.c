@@ -129,6 +129,10 @@ static int run_bench(size_t d, long n_reps, size_t batch_size)
     double kernel_ns_per_state_step = 0.0;
     double kernel_gflops = 0.0;
     double kernel_gbytes_s = 0.0;
+    long long resident_total_ns = 0;
+    double resident_ns_per_state_step = 0.0;
+    double resident_gflops = 0.0;
+    double resident_gbytes_s = 0.0;
     lb_cuda_raw_batch_context_t ctx = {0};
 
     printf("\n=== d = %zu (batch = %zu, P size = %.1f KB) ===\n",
@@ -218,6 +222,32 @@ static int run_bench(size_t d, long n_reps, size_t batch_size)
         goto done;
     }
 
+    /* Resident-P regime: P stays on the device, states move each rep. */
+    for (int w = 0; w < 5; w++) {
+        if (lb_cuda_raw_batch_upload_input(&ctx, rho_in_packed) != 0 ||
+            lb_cuda_raw_batch_launch(&ctx) != 0 ||
+            lb_cuda_raw_batch_download_output(&ctx, rho_out_packed) != 0) {
+            fprintf(stderr, "CUDA resident warm-up failed\n");
+            ret = 1;
+            goto done;
+        }
+    }
+    clock_gettime(CLOCK_MONOTONIC, &t0);
+    for (long r = 0; r < n_reps; r++) {
+        if (lb_cuda_raw_batch_upload_input(&ctx, rho_in_packed) != 0 ||
+            lb_cuda_raw_batch_launch(&ctx) != 0 ||
+            lb_cuda_raw_batch_download_output(&ctx, rho_out_packed) != 0) {
+            fprintf(stderr, "CUDA resident timing loop failed\n");
+            ret = 1;
+            goto done;
+        }
+    }
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    resident_total_ns = ns_diff(t0, t1);
+    resident_ns_per_state_step = (double)resident_total_ns / (double)state_steps;
+    resident_gflops = (flops_per_state_step * (double)state_steps) / ((double)resident_total_ns);
+    resident_gbytes_s = (bytes_per_state_step * (double)state_steps) / ((double)resident_total_ns);
+
     kernel_total_ns = (double)kernel_ms_total * 1e6;
     kernel_s_total = kernel_total_ns * 1e-9;
     kernel_ns_per_state_step = kernel_total_ns / (double)state_steps;
@@ -233,11 +263,14 @@ static int run_bench(size_t d, long n_reps, size_t batch_size)
     printf("  [kernel] ns/state  : %.2f ns\n", kernel_ns_per_state_step);
     printf("  [kernel] GFLOP/s   : %.3f\n", kernel_gflops);
     printf("  [kernel] GB/s      : %.3f\n", kernel_gbytes_s);
+    printf("  [resident] ns/state: %.2f ns\n", resident_ns_per_state_step);
+    printf("  [resident] GFLOP/s : %.3f\n", resident_gflops);
     printf("  arith intens       : %.4f FLOP/byte\n",
            flops_per_state_step / bytes_per_state_step);
-    printf("RESULT,d=%zu,batch_size=%zu,n_reps=%ld,host_ns_per_state_step=%.2f,host_gflops=%.6f,host_gbytes_s=%.6f,kernel_ns_per_state_step=%.2f,kernel_gflops=%.6f,kernel_gbytes_s=%.6f\n",
+    printf("RESULT,d=%zu,batch_size=%zu,n_reps=%ld,host_ns_per_state_step=%.2f,host_gflops=%.6f,host_gbytes_s=%.6f,kernel_ns_per_state_step=%.2f,kernel_gflops=%.6f,kernel_gbytes_s=%.6f,resident_ns_per_state_step=%.2f,resident_gflops=%.6f,resident_gbytes_s=%.6f\n",
            d, batch_size, n_reps, host_ns_per_state_step, host_gflops, host_gbytes_s,
-           kernel_ns_per_state_step, kernel_gflops, kernel_gbytes_s);
+           kernel_ns_per_state_step, kernel_gflops, kernel_gbytes_s,
+           resident_ns_per_state_step, resident_gflops, resident_gbytes_s);
 
 done:
     lb_cuda_raw_batch_free(&ctx);
