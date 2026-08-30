@@ -96,6 +96,21 @@ typedef struct {
     size_t dim;
 } lb_expm_workspace_t;
 
+/**
+ * Timing breakdown of one or more matrix-exponential builds. All fields are
+ * accumulated (added to), so a caller zero-initializes once and passes the
+ * same struct to many builds to get the sum.
+ */
+typedef struct {
+    double ns_scale;      /* dt scaling, 1-norm estimate, and 2^-s scaling */
+    double ns_pade_mul;   /* the six dense matrix products of the Padé stage */
+    double ns_pade_axpy;  /* element-wise polynomial assembly in the Padé stage */
+    double ns_solve;      /* Gaussian elimination solve (V - U) X = (V + U) */
+    double ns_square;     /* the s squaring matrix products */
+    long   n_squarings;   /* total squarings across accumulated builds */
+    long   n_builds;      /* number of builds accumulated */
+} lb_expm_stats_t;
+
 /* --------------------------------------------------------------------------
  * Matrix allocation / deallocation
  * -------------------------------------------------------------------------- */
@@ -176,6 +191,13 @@ int lb_build_dissipator_superop(const lb_system_t *sys, lb_matrix_t *out);
  */
 int lb_expm(const lb_matrix_t *A, lb_matrix_t *out);
 
+/**
+ * Same as lb_expm() with caller-owned workspace, plus a timing breakdown.
+ * stats may be NULL, in which case no timers run.
+ */
+int lb_expm_stats(const lb_matrix_t *A, lb_matrix_t *out,
+                  lb_expm_workspace_t *ws, lb_expm_stats_t *stats);
+
 /** Allocate reusable scratch storage for lb_build_propagator_ws(). */
 int lb_expm_workspace_alloc(lb_expm_workspace_t *ws, size_t dim);
 
@@ -200,6 +222,16 @@ int lb_build_propagator_ws(const lb_matrix_t *L,
                            double dt,
                            lb_propagator_t *prop,
                            lb_expm_workspace_t *ws);
+
+/**
+ * Same as lb_build_propagator_ws() plus a timing breakdown of the build.
+ * stats may be NULL, in which case no timers run.
+ */
+int lb_build_propagator_ws_stats(const lb_matrix_t *L,
+                                 double dt,
+                                 lb_propagator_t *prop,
+                                 lb_expm_workspace_t *ws,
+                                 lb_expm_stats_t *stats);
 
 /** Free propagator memory. */
 void lb_propagator_free(lb_propagator_t *prop);

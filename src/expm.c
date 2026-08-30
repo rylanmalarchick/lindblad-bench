@@ -10,8 +10,10 @@
  *   in the denominator. See lb_expm() for the construction.
  */
 
+#define _POSIX_C_SOURCE 199309L
 #include "expm.h"
 #include <stdlib.h>
+#include <time.h>
 #include <string.h>
 #include <math.h>
 #include <complex.h>
@@ -189,6 +191,18 @@ void lb_expm_workspace_free(lb_expm_workspace_t *ws)
     ws->dim = 0;
 }
 
+/* Monotonic wall clock in ns. Only called when a stats struct is present. */
+static double now_ns(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec * 1e9 + (double)ts.tv_nsec;
+}
+
+#define STAT_MARK(stats, var) do { if (stats) (var) = now_ns(); } while (0)
+#define STAT_ADD(stats, field, t0) \
+    do { if (stats) (stats)->field += now_ns() - (t0); } while (0)
+
 /* --------------------------------------------------------------------------
  * Padé [13/13] numerator and denominator
  *
@@ -199,8 +213,10 @@ void lb_expm_workspace_free(lb_expm_workspace_t *ws)
  *
  * See Higham 2005, Algorithm 2.3.
  * -------------------------------------------------------------------------- */
-static int pade13_ws(const lb_matrix_t *A, lb_matrix_t *out, lb_expm_workspace_t *ws)
+static int pade13_ws(const lb_matrix_t *A, lb_matrix_t *out,
+                     lb_expm_workspace_t *ws, lb_expm_stats_t *stats)
 {
+    double t = 0.0;
     size_t n = A->dim;
     lb_matrix_t *A2 = &ws->A2;
     lb_matrix_t *A4 = &ws->A4;
@@ -212,18 +228,25 @@ static int pade13_ws(const lb_matrix_t *A, lb_matrix_t *out, lb_expm_workspace_t
     if (ws->dim != n || out->dim != n) return -1;
 
     /* A2 = A*A, A4 = A2*A2, A6 = A4*A2 */
+    STAT_MARK(stats, t);
     mat_mul(A, A, A2);
     mat_mul(A2, A2, A4);
     mat_mul(A4, A2, A6);
+    STAT_ADD(stats, ns_pade_mul, t);
 
     /* Build V = b[12]*A6 + b[10]*A4 + b[8]*A2 + b[6]*I */
+    STAT_MARK(stats, t);
     for (size_t i = 0; i < n * n; i++) {
         V->data[i] = PADE_COEFS[12] * A6->data[i]
                    + PADE_COEFS[10] * A4->data[i]
                    + PADE_COEFS[8]  * A2->data[i];
     }
+    STAT_ADD(stats, ns_pade_axpy, t);
     /* V = A6 * V + b6*A6 + b4*A4 + b2*A2 + b0*I */
+    STAT_MARK(stats, t);
     mat_mul(A6, V, W);
+    STAT_ADD(stats, ns_pade_mul, t);
+    STAT_MARK(stats, t);
     for (size_t i = 0; i < n * n; i++) {
         V->data[i] = W->data[i]
                    + PADE_COEFS[6] * A6->data[i]
@@ -240,7 +263,11 @@ static int pade13_ws(const lb_matrix_t *A, lb_matrix_t *out, lb_expm_workspace_t
                    + PADE_COEFS[11] * A4->data[i]
                    + PADE_COEFS[9]  * A2->data[i];
     }
+    STAT_ADD(stats, ns_pade_axpy, t);
+    STAT_MARK(stats, t);
     mat_mul(A6, W, U);
+    STAT_ADD(stats, ns_pade_mul, t);
+    STAT_MARK(stats, t);
     for (size_t i = 0; i < n * n; i++) {
         U->data[i] += PADE_COEFS[7] * A6->data[i]
                     + PADE_COEFS[5] * A4->data[i]
@@ -249,15 +276,23 @@ static int pade13_ws(const lb_matrix_t *A, lb_matrix_t *out, lb_expm_workspace_t
     for (size_t i = 0; i < n; i++) {
         U->data[i * n + i] += PADE_COEFS[1];
     }
+    STAT_ADD(stats, ns_pade_axpy, t);
+    STAT_MARK(stats, t);
     mat_mul(A, U, W);
+    STAT_ADD(stats, ns_pade_mul, t);
+    STAT_MARK(stats, t);
     memcpy(U->data, W->data, n * n * sizeof(double complex));
 
     for (size_t i = 0; i < n * n; i++) {
         out->data[i] = V->data[i] + U->data[i];
         W->data[i]   = V->data[i] - U->data[i];
     }
+    STAT_ADD(stats, ns_pade_axpy, t);
 
-    return mat_solve(W, out);
+    STAT_MARK(stats, t);
+    int rc = mat_solve(W, out);
+    STAT_ADD(stats, ns_solve, t);
+    return rc;
 }
 
 /* --------------------------------------------------------------------------
@@ -265,10 +300,18 @@ static int pade13_ws(const lb_matrix_t *A, lb_matrix_t *out, lb_expm_workspace_t
  * -------------------------------------------------------------------------- */
 int lb_expm_ws(const lb_matrix_t *A, lb_matrix_t *out, lb_expm_workspace_t *ws)
 {
+    return lb_expm_stats(A, out, ws, NULL);
+}
+
+int lb_expm_stats(const lb_matrix_t *A, lb_matrix_t *out,
+                  lb_expm_workspace_t *ws, lb_expm_stats_t *stats)
+{
+    if (!A || !out || !ws) return -1;
     size_t n = A->dim;
+    if (out->dim != n || ws->dim != n) return -1;
 
-    if (!A || !out || !ws || out->dim != n || ws->dim != n) return -1;
-
+    double t = 0.0;
+    STAT_MARK(stats, t);
     double norm = mat_one_norm(A);
 
     /* Determine number of squarings s such that ||A/2^s||_1 <= theta_13 */
@@ -282,14 +325,21 @@ int lb_expm_ws(const lb_matrix_t *A, lb_matrix_t *out, lb_expm_workspace_t *ws)
     for (size_t i = 0; i < n * n; i++) {
         ws->As.data[i] = A->data[i] * scale;
     }
+    STAT_ADD(stats, ns_scale, t);
 
     /* Compute Padé approximant of expm(As) */
-    if (pade13_ws(&ws->As, out, ws) != 0) return -1;
+    if (pade13_ws(&ws->As, out, ws, stats) != 0) return -1;
 
     /* Squaring phase: out = out^(2^s) */
+    STAT_MARK(stats, t);
     for (int i = 0; i < s; i++) {
         mat_mul(out, out, &ws->tmp);
         memcpy(out->data, ws->tmp.data, n * n * sizeof(double complex));
+    }
+    STAT_ADD(stats, ns_square, t);
+    if (stats) {
+        stats->n_squarings += s;
+        stats->n_builds += 1;
     }
 
     return 0;

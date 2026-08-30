@@ -9,9 +9,11 @@
  *   then reshape back to d×d.
  */
 
+#define _POSIX_C_SOURCE 199309L
 #include "propagate.h"
 #include "expm.h"
 #include <stdlib.h>
+#include <time.h>
 #include <string.h>
 #include <math.h>
 #include <complex.h>
@@ -29,6 +31,22 @@ int lb_build_propagator_ws(const lb_matrix_t *L,
                            lb_propagator_t *prop,
                            lb_expm_workspace_t *ws)
 {
+    return lb_build_propagator_ws_stats(L, dt, prop, ws, NULL);
+}
+
+static double prop_now_ns(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec * 1e9 + (double)ts.tv_nsec;
+}
+
+int lb_build_propagator_ws_stats(const lb_matrix_t *L,
+                                 double dt,
+                                 lb_propagator_t *prop,
+                                 lb_expm_workspace_t *ws,
+                                 lb_expm_stats_t *stats)
+{
     if (!L || !prop || !ws) return -1;
 
     size_t d2 = L->dim;
@@ -41,11 +59,13 @@ int lb_build_propagator_ws(const lb_matrix_t *L,
     if (lb_matrix_alloc(&prop->P, d2) != 0) return -1;
 
     /* Scale L by dt into workspace scratch and exponentiate in-place. */
+    double t0 = stats ? prop_now_ns() : 0.0;
     for (size_t i = 0; i < d2 * d2; i++) {
         ws->tmp.data[i] = L->data[i] * dt;
     }
+    if (stats) stats->ns_scale += prop_now_ns() - t0;
 
-    if (lb_expm_ws(&ws->tmp, &prop->P, ws) != 0) {
+    if (lb_expm_stats(&ws->tmp, &prop->P, ws, stats) != 0) {
         lb_matrix_free(&prop->P);
         return -1;
     }
