@@ -1,5 +1,28 @@
 # FPGA Results Note
 
+## 2026-08-30 update: operating point is 108 MHz
+
+The numbers below this section are the 2026-04-16 record at the historical
+`135 MHz` configuration and are superseded. The 135 MHz build passed static
+timing (nextpnr reported `241.60 MHz` for that build) but corrupted results
+under full-scale operands: 1 of 100 adversarial stress rounds was bit-exact
+(`benchmarks/fpga/stress_135mhz_100_20260709.log`). The open toolchain has no
+timing arcs for MULT18X18, so the DSP path is invisible to static timing
+analysis. The design was re-characterized at `108 MHz`, which passes 500 of
+500 stress rounds (`benchmarks/fpga/stress_108mhz_500_20260830.log`).
+
+Current numbers, from `benchmarks/fpga/benchmark_compare_1000_108mhz_20260830.log`:
+
+- Programmed clock: `108 MHz`
+- Single-step count: `95` cycles, `879.6 ns`; multi-step `94n + 1`
+- Spread: `0` cycles over `1000` trials
+- Utilization of the 108 MHz build (`benchmarks/fpga/utilization_108mhz.txt`):
+  `1035` LUT4, `4` MULT18X18, `2` BSRAM
+- On-chip fixed-point drift readback, bit-exact with the software Q1.15 model
+  for 1 to 10^4 steps: `benchmarks/fpga/drift_hw_108mhz_20260830.csv`
+
+## 2026-04-16 record (historical, 135 MHz)
+
 Date: 2026-04-16  
 Scope: Tang Nano 20K `d=3` Lindblad propagator hardware results for JCP manuscript integration
 

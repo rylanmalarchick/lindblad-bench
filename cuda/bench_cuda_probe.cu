@@ -118,7 +118,7 @@ int main(int argc, char **argv)
             if (n < 1) n = 1;
             bytes = n * sizeof(double2);
             char tag[64];
-            int reps = (int)(n_reps * (bytes < (1u << 20) ? 1 : 1));
+            int reps = n_reps;
 
             double2 *d_a = nullptr, *d_b = nullptr;
             cudaMalloc(&d_a, bytes);

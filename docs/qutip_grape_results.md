@@ -1,5 +1,24 @@
 # QuTiP and GRAPE Results Note
 
+## 2026-08-30 update: aligned model, new numbers
+
+The ratios below are the 2026-04 record and are superseded. The C and QuTiP
+benchmarks were aligned in 2026-08 (both collapse operators on the C side,
+one shared closed-form drive schedule) and re-measured with five trials per
+size. Current medians, from `benchmarks/grape_c_results_raw_*.csv` and
+`benchmarks/qutip_grape_results_{intel,ryzen}.csv`:
+
+- i9: C vs `mesolve` `101x` (d=3), `2.8x` (d=9); `mesolve` wins `2.3x` (d=27)
+- Ryzen: `224x`, `3.4x`; `mesolve` wins `4.9x` (d=27)
+- vs the QuTiP `expm` (propagator) mode: C wins `39x`/`89x` (d=3), `2.4x`/`2.4x` (d=9);
+  QuTiP wins `1.2x`/`2.0x` (d=27) with default BLAS threading. With BLAS pinned
+  to one thread on the i9 the C path wins `1.7x` at d=27
+  (`benchmarks/qutip_grape_results_intel_pinned.csv`).
+- Build-time breakdown: the dense LU solve is `92%` (i9) and `94%` (Ryzen) of
+  the propagator build at d=27.
+
+## 2026-04 record (historical)
+
 Date: 2026-04-16  
 Scope: released QuTiP baseline status, microbenchmark results, and the optimized GRAPE-style application benchmark
 

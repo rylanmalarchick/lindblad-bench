@@ -61,9 +61,10 @@ CONSTANTS = {
     # FMA latency in cycles and sustained clock for the single-thread kernel.
     # L_fma: FMA latency in cycles. f_ghz: sustained single-core clock during
     # the runs (nominal turbo). T: the thread count used for the batched rows.
-    "i9-13980HX": {"L_fma": 4, "f_ghz": 5.0, "T": 8, "stream": "theLittleMachine",
+    # T: thread counts for the batched rows (the probe measured these counts).
+    "i9-13980HX": {"L_fma": 4, "f_ghz": 5.0, "T": (8, 24), "stream": "theLittleMachine",
                    "cpu": "cpu_batch_results_intel.csv"},
-    "Ryzen 5 1600": {"L_fma": 5, "f_ghz": 3.4, "T": 6, "stream": "theMachine",
+    "Ryzen 5 1600": {"L_fma": 5, "f_ghz": 3.4, "T": (6, 12), "stream": "theMachine",
                      "cpu": "cpu_batch_results_ryzen.csv"},
 }
 GPUS = {
@@ -118,10 +119,11 @@ def cpu_rows() -> list[dict]:
         private, shared, fork = load_stream(c["stream"])
         meas = pd.read_csv(BENCH / c["cpu"])
         meas = meas.rename(columns={"median_ns_per_state_step": "ns"})
-        T_host = c["T"]
-        points = [(d, 1, 1) for d in (3, 9, 27)] + [(d, T_host, 128) for d in (3, 9, 27)]
+        T_lo, T_hi = c["T"]
+        points = [(d, 1, 1) for d in (3, 9, 27)]
+        points += [(d, T, 128) for T in (T_lo, T_hi) for d in (3, 9, 27)]
         if host == "i9-13980HX":
-            points += [(4, 1, 128), (8, 1, 128), (4, T_host, 128), (8, T_host, 128)]
+            points += [(4, 1, 128), (8, 1, 128), (4, T_lo, 128), (8, T_lo, 128)]
         for d, T, b in points:
             n = d * d
             W = working_set_kb(n)
@@ -166,9 +168,11 @@ def gpu_rows() -> list[dict]:
             bw_gather = p[f"gather_gbs_{tag}"] * 1e9
             bw_stream = max(v for k, v in p.items() if k.startswith("stream_gbs_")) * 1e9
             t_launch = p["launch_ns"]
-            t_sync = p["launch_sync_ns"]
-            small = 2048.0
-            big = 65536.0 * 1024.0
+            # launch_sync_ns brackets launch + cudaDeviceSynchronize; the launch
+            # part is already in T_kernel, so only the synchronize remainder is added.
+            t_sync = p["launch_sync_ns"] - p["launch_ns"]
+            # The probe's "2kb" point moves floor(1.5*1024/16)*16 = 1536 bytes.
+            small = float(int(1.5 * 1024 / 16) * 16)
             def xfer(kind: str, nbytes: float) -> float:
                 t_lat = small / (p[f"{kind}_gbs_2kb"] * 1e9) * 1e9
                 bw_inf = p[f"{kind}_gbs_65536kb"] * 1e9
@@ -224,7 +228,7 @@ def write_tables(rows: list[dict]) -> None:
         )
     (GEN / "table_cost_model_cpu.tex").write_text(
         "\\begin{tabular}{@{}lrrrrrrl@{}}\n\\toprule\n"
-        "platform & $d$ & threads & batch & ideal (ns) & measured (ns) & ratio & gap mechanism \\\\\n"
+        "platform & $d$ & threads & batch & idealized (ns) & measured (ns) & ratio & gap mechanism \\\\\n"
         "\\midrule\n" + "\n".join(lines) + "\n\\bottomrule\n\\end{tabular}\n"
     )
 
@@ -246,7 +250,7 @@ def write_tables(rows: list[dict]) -> None:
         "\\begin{tabular}{@{}lrrrrrrrrrrr@{}}\n\\toprule\n"
         " & & & \\multicolumn{3}{c}{kernel-only} & \\multicolumn{3}{c}{resident $P$} & \\multicolumn{3}{c}{host-visible} \\\\\n"
         "\\cmidrule(lr){4-6} \\cmidrule(lr){7-9} \\cmidrule(lr){10-12}\n"
-        "GPU & $d$ & batch & ideal & meas. & ratio & ideal & meas. & ratio & ideal & meas. & ratio \\\\\n"
+        "GPU & $d$ & batch & idealized & meas. & ratio & idealized & meas. & ratio & idealized & meas. & ratio \\\\\n"
         "\\midrule\n" + "\n".join(gpu_lines) + "\n\\bottomrule\n\\end{tabular}\n"
     )
     pd.DataFrame(rows).to_csv(BENCH / "cost_model_table.csv", index=False)
@@ -257,7 +261,7 @@ def write_probe_table() -> None:
     lines = []
     for host, c in CONSTANTS.items():
         private, shared, fork = load_stream(c["stream"])
-        T = c["T"]
+        T = c["T"][0]
         vals = [private[(sz, 1)] for sz in SIZES_KB]
         lines.append(
             f"{host} & " + " & ".join(f"{v:.0f}" for v in vals) +
@@ -274,7 +278,7 @@ def write_probe_table() -> None:
         gname = "RTX 4070" if "4070" in name else "GTX 1070 Ti"
         glines.append(
             f"{gname} & {p['launch_ns'] / 1e3:.1f} & {p['launch_sync_ns'] / 1e3:.1f} & "
-            f"{2048 / (p['h2d_gbs_2kb'] * 1e9) * 1e6:.1f} & {p['h2d_gbs_65536kb']:.1f} & {p['d2h_gbs_65536kb']:.1f} & "
+            f"{1536 / (p['h2d_gbs_2kb'] * 1e9) * 1e6:.1f} & {p['h2d_gbs_65536kb']:.1f} & {p['d2h_gbs_65536kb']:.1f} & "
             f"{p['stream_gbs_8300kb']:.0f} & {p['gather_gbs_8300kb']:.0f} & {p['stream_gbs_65536kb']:.0f} & {p['gather_gbs_65536kb']:.0f} \\\\"
         )
     (GEN / "table_probes_gpu.tex").write_text(
