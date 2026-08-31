@@ -49,3 +49,6 @@ paper/cpc_submission/
 paper/mainNotes.bib
 texput.log
 .venv-qutip/
+
+# Manuscript sources and notes stay local; the public repository is code and data only.
+paper/
